@@ -5,9 +5,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <meta name="theme-color" content="#ffffff">
+    <!-- 修复 apple-mobile-web-app-capable 弃用警告 -->
+    <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="日斗财富">
     <title>日斗财富论坛 - 专业投资理财社区</title>
+    <!-- Tailwind CDN 仅用于开发/演示环境 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.1/css/all.min.css">
@@ -21,7 +25,7 @@
             background-color: #f8fafc;
             color: #1e293b;
             overflow: hidden;
-            -webkit-tap-highlight-color: transparent; /* 移除点击高亮 */
+            -webkit-tap-highlight-color: transparent;
         }
         .no-scrollbar::-webkit-scrollbar {
             display: none;
@@ -43,12 +47,6 @@
         .animate-float {
             animation: float 6s ease-in-out infinite;
         }
-        /* 移动端详情页防止滚动带动背景 */
-        .modal-open {
-            overflow: hidden;
-            touch-action: none;
-        }
-        /* 按钮按压效果 */
         .active-scale:active {
             transform: scale(0.96);
         }
