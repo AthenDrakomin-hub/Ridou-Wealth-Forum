@@ -1,13 +1,23 @@
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense, lazy } from 'react';
 import Sidebar from './components/Sidebar';
 import PostItem from './components/PostItem';
-import RealtimeQuotes from './components/RealtimeQuotes';
-import RealtimeNewsFeed from './components/RealtimeNewsFeed';
 import Logo from './components/Logo';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { DataService } from './services/api';
 import { Post, NewsItem, MarketIndex, SocietyApplication } from './types';
+
+// 代码分割：懒加载重型组件
+const RealtimeQuotes = lazy(() => import('./components/RealtimeQuotes'));
+const RealtimeNewsFeed = lazy(() => import('./components/RealtimeNewsFeed'));
+
+// 极简加载占位组件
+const ComponentLoader = () => (
+  <div className="flex flex-col items-center justify-center p-12 space-y-4 animate-pulse">
+    <div className="w-8 h-8 border-2 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+    <span className="text-[10px] font-black text-slate-300 uppercase tracking-widest">Loading Module...</span>
+  </div>
+);
 
 const App: React.FC = () => {
   const [activeTab, setActiveTab] = useState('home');
@@ -125,7 +135,7 @@ const App: React.FC = () => {
             与盘后文字复盘
           </h2>
           <p className="text-lg text-slate-500 font-medium leading-relaxed">
-            穿透市场当日波动的本质，梳理主线逻辑与情绪对立面。由日斗智库官方出品，日更不辍。
+            穿透市场当日波动的本质，梳理主线逻辑与情绪对立面。由日斗智库官方出品，日更新不辍。
           </p>
           <button 
              onClick={() => setConfirmingLink({ 
@@ -279,7 +289,9 @@ const App: React.FC = () => {
         </div>
         
         <div className="lg:col-span-4 sticky top-32 h-fit hidden lg:block">
-          <RealtimeNewsFeed news={news} loading={loading} />
+          <Suspense fallback={<ComponentLoader />}>
+            <RealtimeNewsFeed news={news} loading={loading} />
+          </Suspense>
         </div>
       </div>
     </div>
@@ -292,7 +304,9 @@ const App: React.FC = () => {
       case 'daily-talk': return renderDailyTalkPage();
       case 'markets': return (
         <div className="px-6 md:px-12 max-w-7xl mx-auto space-y-12 animate-in fade-in duration-700 pt-10">
-          <RealtimeQuotes indices={indices} />
+          <Suspense fallback={<ComponentLoader />}>
+            <RealtimeQuotes indices={indices} />
+          </Suspense>
         </div>
       );
       case 'private-society': return renderPrivateSociety();
@@ -337,7 +351,9 @@ const App: React.FC = () => {
           )}
           
           <div className={`flex-1 ${activeTab === 'private-society' ? '' : 'pb-40 pt-6 md:pt-16'}`}>
-            {renderContent()}
+            <Suspense fallback={<ComponentLoader />}>
+              {renderContent()}
+            </Suspense>
           </div>
         </main>
         
@@ -396,12 +412,11 @@ const App: React.FC = () => {
         </div>
       )}
 
-      {/* 席位申请模态框 - 重点修复部分 */}
+      {/* 席位申请模态框 */}
       {isAppModalOpen && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-6 bg-slate-950/95 backdrop-blur-2xl">
           <div className="bg-[#0f172a] w-full max-w-xl max-h-[85vh] overflow-y-auto no-scrollbar rounded-[2.5rem] md:rounded-[3.5rem] relative shadow-2xl border border-white/10 flex flex-col">
              
-             {/* 粘性关闭按钮，始终在右上角 */}
              <div className="sticky top-0 w-full flex justify-end p-6 z-30 pointer-events-none">
                 <button 
                   onClick={() => setIsAppModalOpen(false)} 
