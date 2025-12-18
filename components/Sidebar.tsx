@@ -4,8 +4,8 @@ import Logo from './Logo';
 
 export const MENU_ITEMS = [
   { id: 'home', icon: '🏠', label: '财富广场' },
-  { id: 'strategy', icon: '🎯', label: '日斗策略', isExternal: true },
-  { id: 'daily-talk', icon: '🎙️', label: '每日财经说', isExternal: true },
+  { id: 'strategy', icon: '🎯', label: '日斗策略' },
+  { id: 'daily-talk', icon: '🎙️', label: '每日财经说' },
   { id: 'markets', icon: '📈', label: '行情中心' },
   { id: 'about', icon: '🏛️', label: '关于我们' },
 ];
@@ -36,9 +36,7 @@ const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
               <span className={`text-xl transition-transform group-hover:scale-110 ${activeTab === item.id ? 'opacity-100' : 'opacity-60'}`}>{item.icon}</span>
               <span className="text-sm tracking-tight">{item.label}</span>
             </div>
-            {item.isExternal && (
-              <span className="text-[10px] opacity-20 group-hover:opacity-100 transition-opacity">↗</span>
-            )}
+            {/* 视觉反馈已移动到 App 内部页面处理，侧边栏保持极简 */}
           </button>
         ))}
       </nav>

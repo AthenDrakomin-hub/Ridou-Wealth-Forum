@@ -1,7 +1,5 @@
 {
   "name": "Ridou Wealth Forum (日斗财富论坛)",
-  "description": "A premium financial community and wealth management platform featuring AI-driven market analysis, real-time discussions, and personalized investment insights.",
-  "requestFramePermissions": [
-    "microphone"
-  ]
+  "description": "A premium financial community and wealth management platform featuring market analysis, real-time discussions, and personalized investment insights.",
+  "requestFramePermissions": []
 }
