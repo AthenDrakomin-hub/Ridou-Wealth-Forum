@@ -398,70 +398,77 @@ const App: React.FC = () => {
 
       {/* 席位申请模态框 - 重点修复部分 */}
       {isAppModalOpen && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-6 bg-slate-950/90 backdrop-blur-xl">
-          <div className="bg-[#0f172a] w-full max-w-2xl max-h-[90vh] overflow-y-auto no-scrollbar rounded-[2.5rem] md:rounded-[4rem] relative shadow-2xl border border-white/10 flex flex-col">
-             {/* 粘性头部，确保关闭按钮始终可见 */}
-             <div className="sticky top-0 right-0 p-8 flex justify-end z-20 pointer-events-none">
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 md:p-6 bg-slate-950/95 backdrop-blur-2xl">
+          <div className="bg-[#0f172a] w-full max-w-xl max-h-[85vh] overflow-y-auto no-scrollbar rounded-[2.5rem] md:rounded-[3.5rem] relative shadow-2xl border border-white/10 flex flex-col">
+             
+             {/* 粘性关闭按钮，始终在右上角 */}
+             <div className="sticky top-0 w-full flex justify-end p-6 z-30 pointer-events-none">
                 <button 
                   onClick={() => setIsAppModalOpen(false)} 
-                  className="text-white/20 hover:text-white transition-colors text-4xl pointer-events-auto bg-[#0f172a]/80 backdrop-blur-sm rounded-full w-12 h-12 flex items-center justify-center"
+                  className="text-white/40 hover:text-white transition-colors text-3xl pointer-events-auto bg-slate-800/80 backdrop-blur-md rounded-full w-10 h-10 flex items-center justify-center shadow-lg border border-white/5"
                 >
                   ✕
                 </button>
              </div>
              
-             <div className="px-8 md:px-20 pb-16 md:pb-24 -mt-12">
+             <div className="px-6 md:px-14 pb-12 md:pb-20">
                {submitSuccess ? (
-                 <div className="text-center py-10 space-y-8">
-                    <div className="text-7xl md:text-9xl mb-8">🔱</div>
-                    <h2 className="text-4xl md:text-6xl font-serif font-bold italic text-white leading-tight">申请已同步</h2>
-                    <p className="text-white/40 text-lg md:text-xl font-medium leading-relaxed max-w-sm mx-auto">
-                      请务必开启飞书“通过手机号搜索我”权限。导师将在 24 小时内通过飞书发起连接。
+                 <div className="text-center py-6 space-y-8 animate-in zoom-in duration-500">
+                    <div className="text-7xl md:text-8xl mb-6">🔱</div>
+                    <h2 className="text-4xl md:text-5xl font-serif font-bold italic text-white leading-tight uppercase tracking-tight">申请已同步</h2>
+                    <p className="text-white/60 text-base md:text-lg font-medium leading-relaxed max-w-xs mx-auto">
+                      请开启飞书“通过手机号搜索我”权限。导师将在 24 小时内发起连接。
                     </p>
                     <button 
                       onClick={() => {setIsAppModalOpen(false); setSubmitSuccess(null);}} 
-                      className="w-full bg-white text-slate-900 py-6 md:py-8 rounded-2xl md:rounded-3xl font-black uppercase tracking-widest text-xl active-scale"
+                      className="w-full bg-white text-slate-900 py-5 md:py-6 rounded-2xl md:rounded-[2rem] font-black uppercase tracking-widest text-lg active-scale shadow-xl"
                     >
-                      好的
+                      返回广场
                     </button>
                  </div>
                ) : (
                  <>
-                   <h2 className="text-4xl md:text-7xl font-serif font-bold italic text-white leading-none mb-4 md:mb-6">席位申请</h2>
-                   <p className="text-amber-500 text-[10px] mb-12 md:mb-16 font-black tracking-[0.5em] md:tracking-[0.8em] uppercase">Admission Formal Request</p>
+                   <div className="space-y-2 mb-10 md:mb-12">
+                     <h2 className="text-4xl md:text-6xl font-serif font-bold italic text-white leading-none uppercase tracking-tighter">席位申请</h2>
+                     <p className="text-amber-500 text-[10px] font-black tracking-[0.6em] md:tracking-[0.8em] uppercase opacity-80">Admission Formal Request</p>
+                   </div>
+
                    <form onSubmit={async (e) => {
                      e.preventDefault();
                      setSubmitSuccess("success");
-                   }} className="space-y-10 md:space-y-12">
-                      <div className="space-y-4">
-                        <label className="text-[10px] font-black text-white/40 uppercase ml-4 tracking-[0.3em]">您的真实姓名/称呼</label>
+                   }} className="space-y-8 md:space-y-10">
+                      <div className="space-y-3 md:space-y-4">
+                        <label className="text-[10px] font-black text-white/60 uppercase ml-2 tracking-widest">您的真实姓名/称呼</label>
                         <input 
                           required 
+                          autoFocus
                           value={appData.name} 
                           onChange={e=>setAppData({...appData, name:e.target.value})} 
-                          placeholder="如何称呼您" 
-                          className="w-full bg-white/5 p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-white/10 outline-none focus:border-amber-600/50 font-black text-xl md:text-2xl text-white transition-all placeholder:text-white/10" 
+                          placeholder="请输入您的称呼" 
+                          className="w-full bg-white/10 p-5 md:p-7 rounded-2xl md:rounded-[2.2rem] border border-white/20 outline-none focus:border-amber-600/60 font-black text-lg md:text-xl text-white transition-all placeholder:text-white/20 shadow-inner" 
                         />
                       </div>
-                      <div className="space-y-4">
-                        <label className="text-[10px] font-black text-white/40 uppercase ml-4 tracking-[0.3em]">飞书手机号 (连接唯一凭证)</label>
+                      <div className="space-y-3 md:space-y-4">
+                        <label className="text-[10px] font-black text-white/60 uppercase ml-2 tracking-widest">飞书手机号 (连接唯一凭证)</label>
                         <input 
                           required 
                           type="tel" 
                           value={appData.phone} 
                           onChange={e=>setAppData({...appData, phone:e.target.value})} 
-                          placeholder="必须与飞书注册手机号一致" 
-                          className="w-full bg-white/5 p-6 md:p-8 rounded-2xl md:rounded-[2.5rem] border border-white/10 outline-none focus:border-amber-600/50 font-black text-xl md:text-2xl text-white transition-all placeholder:text-white/10" 
+                          placeholder="必须与飞书注册号一致" 
+                          className="w-full bg-white/10 p-5 md:p-7 rounded-2xl md:rounded-[2.2rem] border border-white/20 outline-none focus:border-amber-600/60 font-black text-lg md:text-xl text-white transition-all placeholder:text-white/20 shadow-inner" 
                         />
                       </div>
-                      <button 
-                        type="submit" 
-                        className="w-full bg-amber-600 text-white py-6 md:py-10 rounded-2xl md:rounded-[3rem] font-black text-2xl md:text-3xl shadow-2xl active-scale transition-all uppercase italic mt-10 hover:bg-amber-500"
-                      >
-                        提交申请
-                      </button>
-                      <p className="text-center text-white/20 text-[10px] font-bold tracking-widest leading-relaxed px-4">
-                        提交即代表您同意日斗仅通过飞书与您联系，且已开启飞书的搜索权限。
+                      <div className="pt-4">
+                        <button 
+                          type="submit" 
+                          className="w-full bg-amber-600 hover:bg-amber-500 text-white py-6 md:py-8 rounded-2xl md:rounded-[2.5rem] font-black text-xl md:text-2xl shadow-2xl active-scale transition-all uppercase italic tracking-widest"
+                        >
+                          提交正式申请
+                        </button>
+                      </div>
+                      <p className="text-center text-white/30 text-[9px] md:text-[10px] font-bold tracking-widest leading-relaxed px-2">
+                        提交即同意日斗仅通过飞书联系您，且已开启相关搜索权限。日斗绝不进行电话骚扰。
                       </p>
                    </form>
                  </>
