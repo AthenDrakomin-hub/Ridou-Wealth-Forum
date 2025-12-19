@@ -5,6 +5,7 @@ import PostItem from './components/PostItem';
 import Logo from './components/Logo';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { DataService } from './services/api';
+import { GeminiService } from './services/gemini';
 import { Post, NewsItem, MarketIndex, SocietyApplication } from './types';
 
 const RealtimeQuotes = lazy(() => import('./components/RealtimeQuotes'));
@@ -96,7 +97,7 @@ const FeishuGuideSection: React.FC = () => (
           </p>
           <div className="bg-amber-600/10 border border-amber-600/20 p-5 rounded-2xl">
              <p className="text-amber-500 font-black text-center text-sm leading-relaxed tracking-wider">
-               设置 > 隐私 > <br/>
+               设置 &gt; 隐私 &gt; <br/>
                <span className="text-lg">开启“通过手机号搜索我”</span>
              </p>
           </div>
@@ -176,6 +177,13 @@ const App: React.FC = () => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
+  // AI Logic Assistant State
+  const [isAiOpen, setIsAiOpen] = useState(false);
+  const [aiMessage, setAiMessage] = useState('');
+  const [aiChatHistory, setAiChatHistory] = useState<{role: 'user' | 'model', parts: {text: string}[]}[]>([]);
+  const [isAiThinking, setIsAiThinking] = useState(false);
+  const aiScrollRef = useRef<HTMLDivElement>(null);
+
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
   const [appData, setAppData] = useState<SocietyApplication>({
     name: '', phone: '', investYears: '', missingAbilities: '', learningExpectation: ''
@@ -194,6 +202,12 @@ const App: React.FC = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (aiScrollRef.current) {
+      aiScrollRef.current.scrollTo({ top: aiScrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, [aiChatHistory, isAiThinking]);
 
   const fetchData = useCallback(async () => {
     const ds = DataService.getInstance();
@@ -243,6 +257,28 @@ const App: React.FC = () => {
     setSubmitSuccess(false); 
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
+
+  const handleAiSubmit = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    if (!aiMessage.trim() || isAiThinking) return;
+
+    const userMsg = aiMessage;
+    setAiMessage('');
+    setIsAiThinking(true);
+    setAiChatHistory(prev => [...prev, { role: 'user', parts: [{ text: userMsg }] }]);
+
+    try {
+      const result = await GeminiService.getInstance().chat(userMsg, aiChatHistory);
+      setAiChatHistory(result.history);
+    } catch (err: any) {
+      setAiChatHistory(prev => [...prev, { 
+        role: 'model', 
+        parts: [{ text: `⚠️ 逻辑连接中断：${err.message || "请求超时"}` }] 
+      }]);
+    } finally {
+      setIsAiThinking(false);
+    }
+  };
 
   const searchSuggestions = useMemo(() => {
     if (!searchQuery.trim()) return [];
@@ -628,7 +664,7 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div className="fixed inset-0 flex bg-[#fdfdfd] flex-col md:flex-row font-sans overflow-hidden lock-horizontal">
+      <div className="fixed inset-0 flex bg-[#fdfdfd] flex-col md:flex-row font-sans overflow-hidden">
         <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} />
         <div className="flex-1 h-full flex flex-col relative overflow-hidden">
           {activeTab !== 'private-society' && (
@@ -702,6 +738,8 @@ const App: React.FC = () => {
           >
             {renderContent()}
           </main>
+          
+          {/* Mobile Bottom Nav */}
           <nav className="flex-none fixed bottom-0 left-0 right-0 glass-nav border-t border-slate-100 px-6 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] flex md:hidden justify-between items-center z-[60] shadow-2xl">
             {[
               { id: 'home', icon: '🏠', label: '广场' },
@@ -715,8 +753,96 @@ const App: React.FC = () => {
               </button>
             ))}
           </nav>
+
+          {/* AI Floating Button */}
+          <button 
+            onClick={() => setIsAiOpen(true)}
+            className="fixed bottom-24 right-6 md:bottom-12 md:right-12 w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-amber-500 to-amber-700 rounded-full shadow-2xl flex items-center justify-center text-white text-3xl md:text-4xl hover:scale-110 active:scale-95 transition-all z-[80] group"
+          >
+            <span className="group-hover:rotate-12 transition-transform">🔱</span>
+            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 border-2 border-white rounded-full animate-ping"></div>
+          </button>
         </div>
       </div>
+
+      {/* AI Chat Drawer/Modal */}
+      {isAiOpen && (
+        <div className="fixed inset-0 z-[150] flex items-end md:items-center justify-center md:justify-end p-0 md:p-8 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white w-full md:w-[450px] lg:w-[500px] h-[80vh] md:h-[90vh] md:max-h-[800px] rounded-t-[3rem] md:rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden border border-slate-100 relative translate-z-0">
+             <div className="p-6 bg-[#0f172a] text-white flex justify-between items-center shrink-0">
+                <div className="flex items-center gap-4">
+                   <div className="w-10 h-10 bg-amber-500 rounded-2xl flex items-center justify-center text-xl shadow-lg">🔱</div>
+                   <div>
+                      <h3 className="font-bold text-lg leading-tight tracking-tighter">日斗 AI 逻辑专家</h3>
+                      <p className="text-[9px] text-amber-500 font-black uppercase tracking-widest flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
+                        Deep Insight Assistant
+                      </p>
+                   </div>
+                </div>
+                <button onClick={() => setIsAiOpen(false)} className="w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all text-2xl">✕</button>
+             </div>
+
+             <div ref={aiScrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar bg-slate-50/50">
+                {aiChatHistory.length === 0 && (
+                  <div className="h-full flex flex-col items-center justify-center text-center space-y-6 px-10">
+                     <div className="text-6xl opacity-20">📈</div>
+                     <div className="space-y-2">
+                        <p className="text-slate-900 font-black text-xl italic tracking-tighter">今天想拆解什么逻辑？</p>
+                        <p className="text-slate-400 text-xs italic">输入行业、个股或宏观话题，我将结合最新行情为您深度分析。</p>
+                     </div>
+                  </div>
+                )}
+                {aiChatHistory.map((chat, idx) => (
+                  <div key={idx} className={`flex ${chat.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[85%] p-5 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed ${
+                      chat.role === 'user' 
+                      ? 'bg-amber-600 text-white rounded-tr-none' 
+                      : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
+                    }`}>
+                      <div className="whitespace-pre-wrap prose prose-sm max-w-none prose-slate">
+                        {chat.parts[0].text}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {isAiThinking && (
+                  <div className="flex justify-start">
+                    <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-slate-100 rounded-tl-none flex items-center gap-3">
+                       <div className="flex gap-1">
+                         <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce"></div>
+                         <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-.3s]"></div>
+                         <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-.5s]"></div>
+                       </div>
+                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logic Modeling...</span>
+                    </div>
+                  </div>
+                )}
+             </div>
+
+             <form onSubmit={handleAiSubmit} className="p-6 bg-white border-t border-slate-100 shrink-0">
+                <div className="relative flex items-center gap-3 bg-slate-50 p-2 rounded-[1.5rem] border border-slate-200">
+                   <input 
+                      value={aiMessage}
+                      onChange={e => setAiMessage(e.target.value)}
+                      placeholder="咨询深度产业逻辑..."
+                      className="flex-1 bg-transparent py-3 px-4 outline-none text-sm font-bold text-slate-700"
+                   />
+                   <button 
+                      type="submit"
+                      disabled={isAiThinking || !aiMessage.trim()}
+                      className="w-10 h-10 bg-amber-600 text-white rounded-xl shadow-lg hover:bg-amber-500 transition-all flex items-center justify-center disabled:opacity-50 disabled:grayscale"
+                   >
+                      <i className="fas fa-paper-plane text-sm"></i>
+                   </button>
+                </div>
+                <p className="mt-4 text-[8px] text-center font-bold text-slate-300 uppercase tracking-widest">
+                  Powered by Gemini 3 Logic Engine
+                </p>
+             </form>
+          </div>
+        </div>
+      )}
 
       {selectedPost && (
         <div className="fixed inset-0 z-[100] bg-white overflow-y-auto no-scrollbar animate-in slide-in-from-bottom duration-500">
@@ -886,7 +1012,7 @@ const App: React.FC = () => {
                         <div className="pl-14">
                            <div className="bg-black/40 p-5 rounded-2xl border border-white/5">
                               <p className="text-amber-500 font-black text-sm italic">
-                                设置 > 隐私 > <br/>
+                                设置 &gt; 隐私 &gt; <br/>
                                 <span className="text-base">开启“允许通过手机号搜索我”</span>
                               </p>
                            </div>
