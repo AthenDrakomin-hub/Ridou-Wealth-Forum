@@ -7,11 +7,29 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="日斗财富">
+    <meta name="apple-mobile-web-app-title" content="证裕投资">
     
-    <link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==">
+    <!-- SEO & Metadata -->
+    <title>日斗财富论坛 - 证裕投资 (Zhengyu Investment) | 专注深度逻辑与核心资产</title>
+    <meta name="description" content="证裕投资旗下日斗财富论坛：专业级投研社区，专注于全球核心资产管理、产业逻辑重构与深度策略分享。穿透市场噪音，寻找复利基石。">
+    <meta name="keywords" content="证裕投资,日斗财富,投研报告,核心资产,产业逻辑,资产管理,zhengyutouzi">
+    <meta name="author" content="证裕投资咨询有限公司">
     
-    <title>日斗财富论坛 - 专注深度逻辑与核心资产</title>
+    <!-- Open Graph / Social Sharing -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="证裕投资 | 日斗财富">
+    <meta property="og:url" content="https://zhengyutouzi.com">
+    <meta property="og:title" content="日斗财富论坛 - 专注深度逻辑与核心资产">
+    <meta property="og:description" content="穿透市场噪音，重构产业逻辑。证裕投资官方精品投研社区，致力于发现具备全球竞争力的确定性资产。">
+    <meta property="og:image" content="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=https://zhengyutouzi.com">
+    <meta property="og:locale" content="zh_CN">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="日斗财富论坛 - 专注深度逻辑">
+    <meta name="twitter:description" content="证裕投资出品：专业级核心资产配置研析平台。">
+
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2280%22>🔱</text></svg>">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=Inter:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
@@ -21,7 +39,6 @@
         :root {
             --brand-gold: #c29c54;
             --brand-slate: #0f172a;
-            /* 流式字号变量：clamp(最小, 首选, 最大) */
             --fluid-h1: clamp(2.5rem, 8vw, 10rem);
             --fluid-h2: clamp(2rem, 5vw, 6rem);
             --fluid-h3: clamp(1.5rem, 3vw, 3.5rem);
@@ -30,7 +47,6 @@
         
         html {
             font-size: 16px;
-            /* 平滑滚动优化 */
             scroll-behavior: smooth;
         }
 
@@ -64,7 +80,6 @@
         .font-serif { font-family: 'Playfair Display', serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         
-        /* 响应式自适应容器 */
         .adaptive-container {
             width: 100%;
             max-width: min(92vw, 1536px);
@@ -93,12 +108,6 @@
             contain: content;
         }
 
-        .blur-gpu {
-            filter: blur(clamp(40px, 10vw, 120px));
-            transform: translate3d(0, 0, 0);
-            will-change: filter;
-        }
-
         .page-enter {
             animation: fadeInSlide 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
@@ -113,25 +122,24 @@
             .premium-card { border-radius: 1.5rem; }
         }
 
-        /* 解决电脑端高分屏文本渲染清晰度 */
         @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
             body { -moz-osx-font-smoothing: grayscale; }
         }
     </style>
     
     <script type="importmap">
-    {
-      "imports": {
-        "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-        "react/": "https://esm.sh/react@^19.2.3/",
-        "react": "https://esm.sh/react@^19.2.3",
-        "@google/genai": "https://esm.sh/@google/genai@^1.34.0",
-        "recharts": "https://esm.sh/recharts@^3.6.0",
-        "echarts": "https://esm.sh/echarts@^6.0.0",
-        "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.48.1"
-      }
-    }
-    </script>
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "recharts": "https://esm.sh/recharts@^3.6.0",
+    "echarts": "https://esm.sh/echarts@^6.0.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.48.1",
+    "@google/genai": "https://esm.sh/@google/genai@^1.34.0"
+  }
+}
+</script>
 </head>
 <body>
     <div id="root"></div>

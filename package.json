@@ -1,5 +1,5 @@
 {
-  "name": "ridou-wealth-forum-(日斗财富论坛)",
+  "name": "证裕投资-|-日斗财富论坛",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,10 +11,10 @@
   "dependencies": {
     "react-dom": "^19.2.3",
     "react": "^19.2.3",
-    "@google/genai": "^1.34.0",
     "recharts": "^3.6.0",
     "echarts": "^6.0.0",
-    "@supabase/supabase-js": "^2.48.1"
+    "@supabase/supabase-js": "^2.48.1",
+    "@google/genai": "^1.34.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
