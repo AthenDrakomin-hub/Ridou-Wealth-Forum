@@ -41,9 +41,9 @@ export class GeminiService {
       // Fix: Create a new GoogleGenAI instance right before making an API call to ensure latest key usage.
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
-      // Fix: Upgrade to 'gemini-3-pro-image-preview' as it is required when using the googleSearch tool.
+      // Fix: Use 'gemini-3-flash-preview' for general text tasks with search grounding as per guidelines.
       const response = await ai.models.generateContent({
-        model: 'gemini-3-pro-image-preview',
+        model: 'gemini-3-flash-preview',
         contents: history,
         config: {
           systemInstruction: '你是一个专业的财富管理助手。你拥有实时搜索能力，请结合最新的市场数据回答。回答结尾请始终提醒“投资有风险”。',

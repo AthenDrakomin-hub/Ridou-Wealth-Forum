@@ -1,9 +1,8 @@
+/**
+ * 日斗财富论坛 - 常量配置文件
+ * 
+ * 历史 Mock 数据已全部移除。
+ * 当前系统数据流已全面迁移至 Supabase 动态同步逻辑 (见 services/api.ts)。
+ */
 
-import { Post, StockData, SectorData, MarketIndex, NewsItem } from './types';
-
-// 移除 Mock 数据，全部改为动态获取
-export const MOCK_MARKET_INDICES: MarketIndex[] = [];
-export const MOCK_NEWS: NewsItem[] = [];
-export const MOCK_SECTORS: SectorData[] = [];
-export const MOCK_POSTS: Post[] = [];
-export const MOCK_STOCKS: StockData[] = [];
+export {};

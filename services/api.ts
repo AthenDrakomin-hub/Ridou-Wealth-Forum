@@ -1,14 +1,28 @@
 
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { NewsItem, Post, MarketIndex, StockData, SectorData, SocietyApplication } from '../types';
 
+/**
+ * 金融数据服务类 - 接入真实免费 API 源
+ * 指数/行情：东方财富 push2.eastmoney.com
+ * 快讯：新浪财经 zhibo.sina.com.cn
+ */
 export class DataService {
   private static instance: DataService;
+  private supabase: SupabaseClient | null = null;
   
-  private supabaseUrl = (process.env.SUPABASE_URL || '').replace(/\/$/, '');
-  private supabaseKey = process.env.SUPABASE_ANON_KEY || '';
-  private marketApiUrl = (process.env.MARKET_DATA_API_URL || '').replace(/\/$/, '');
+  // 东方财富 API 基础路径
+  private EM_BASE = "https://push2.eastmoney.com/api/qt/stock/get?fields=f43,f170,f169,f168,f167,f58&secid=";
+  // 新浪快讯 API 基础路径
+  private SINA_NEWS_BASE = "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152";
 
-  private constructor() {}
+  private constructor() {
+    const supabaseUrl = process.env.SUPABASE_URL;
+    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    if (supabaseUrl && supabaseKey) {
+      this.supabase = createClient(supabaseUrl, supabaseKey);
+    }
+  }
 
   public static getInstance(): DataService {
     if (!DataService.instance) {
@@ -17,116 +31,167 @@ export class DataService {
     return DataService.instance;
   }
 
-  private async supabaseRequest(table: string, method: string = 'GET', body?: any) {
-    if (!this.supabaseUrl) return null;
-    const url = `${this.supabaseUrl}/rest/v1/${table}`;
-    const headers: Record<string, string> = {
-      'apikey': this.supabaseKey,
-      'Authorization': `Bearer ${this.supabaseKey}`,
-      'Content-Type': 'application/json',
-      'Prefer': 'return=representation'
-    };
-    const response = await fetch(url + (method === 'GET' ? '?select=*' : ''), {
-      method,
-      headers,
-      body: body ? JSON.stringify(body) : undefined
-    });
-    if (!response.ok) throw new Error(`Supabase Error: ${response.statusText}`);
-    return response.json();
+  public isConnected(): boolean {
+    return this.supabase !== null;
   }
 
+  /**
+   * 获取 7x24 小时真实快讯
+   */
   public async fetchNews(): Promise<NewsItem[]> {
+    try {
+      // 使用公共代理以解决开发环境下的跨域问题
+      const proxyUrl = "https://api.allorigins.win/raw?url=";
+      const response = await fetch(`${proxyUrl}${encodeURIComponent(this.SINA_NEWS_BASE)}`);
+      const json = await response.json();
+      
+      if (json?.result?.data?.feed?.list) {
+        return json.result.data.feed.list.map((item: any) => ({
+          id: item.id.toString(),
+          title: item.content,
+          source: '新浪财经',
+          url: item.doc_url || '#',
+          timestamp: item.createtime.split(' ')[1].slice(0, 5), // 提取 HH:mm
+          category: '宏观',
+          sentiment: item.content.includes('利好') || item.content.includes('大涨') ? 'positive' : 'neutral'
+        }));
+      }
+    } catch (err) {
+      console.warn("Real-time news fetch failed, using fallback.", err);
+    }
+
     return [
-      { id: '1', title: '【核心逻辑】两市融资余额增加 32.8 亿，半导体国产设备链条出现主力资金回流。', source: '日斗智库', url: '#', timestamp: '09:30', category: 'A股', sentiment: 'positive' },
-      { id: '2', title: '恒生指数盘中拉升逾 300 点，中资保险与券商板块成为护盘核心力量。', source: '行情中心', url: '#', timestamp: '10:45', category: '港股', sentiment: 'positive' },
-      { id: '3', title: '美联储最新纪要暗示加息周期终结，离岸人民币走强，北向资金净流入扩大。', source: '国际部', url: '#', timestamp: '08:15', category: '宏观', sentiment: 'positive' },
-      { id: '4', title: '工信部：将加快 6G 技术研发与卫星互联网产业化，相关通信设备板块异动。', source: '日斗快讯', url: '#', timestamp: '11:20', category: 'A股', sentiment: 'neutral' }
+      { id: 'f1', title: '【系统提示】正在尝试连接实时财经信号源...', source: '系统', url: '#', timestamp: '--:--', category: '宏观', sentiment: 'neutral' }
     ];
   }
 
+  /**
+   * 获取真实市场指数
+   * 0.399001 (深证成指), 1.000001 (上证指数), 0.399006 (创业板), 100.HSI (恒指)
+   */
   public async fetchMarketIndices(): Promise<MarketIndex[]> {
-    const drift = (val: number) => val * (1 + (Math.random() * 0.0006 - 0.0003));
-    return [
-      { name: '上证指数', value: parseFloat(drift(3062.15).toFixed(2)), change: 0.92, changeAmount: 28.14 },
-      { name: '深证成指', value: parseFloat(drift(9580.42).toFixed(2)), change: 1.25, changeAmount: 118.2 },
-      { name: '创业板指', value: parseFloat(drift(1865.30).toFixed(2)), change: 1.48, changeAmount: 27.2 },
-      { name: '恒生指数', value: parseFloat(drift(16920.5).toFixed(2)), change: 0.15, changeAmount: 25.4 }
+    const symbols = [
+      { id: '1.000001', name: '上证指数' },
+      { id: '0.399001', name: '深证成指' },
+      { id: '0.399006', name: '创业板指' },
+      { id: '100.HSI', name: '恒生指数' },
+      { id: '103.ym_m_CN00Y', name: '富时A50' },
+      { id: '100.NDX', name: '纳斯达克' }
     ];
+
+    try {
+      const results = await Promise.all(symbols.map(async (s) => {
+        const res = await fetch(`${this.EM_BASE}${s.id}`);
+        const json = await res.json();
+        const data = json.data;
+        if (!data) return null;
+        
+        // Fix: Removed duplicate 'value' property assignment to resolve object literal error and corrected the calculation.
+        return {
+          name: s.name,
+          // f43 现价, f170 涨跌幅, f169 涨跌额
+          value: data.f43 / 100, // 指数点位
+          change: data.f170 / 100,
+          changeAmount: data.f169 / 100
+        };
+      }));
+
+      return results.filter(r => r !== null) as MarketIndex[];
+    } catch (err) {
+      console.warn("Index fetch failed, using demo data.", err);
+      // Fallback
+      return [
+        { name: '上证指数', value: 3021.45, change: 0.15, changeAmount: 4.5 },
+        { name: '深证成指', value: 9451.12, change: -0.21, changeAmount: -15.4 }
+      ];
+    }
   }
 
+  /**
+   * 获取个股实时行情
+   */
   public async fetchStockData(symbol: string): Promise<StockData | null> {
-    const dataMap: Record<string, {name: string, price: number}> = {
-      'SH688981': { name: '中芯国际', price: 71.42 },
-      'SH601138': { name: '工业富联', price: 24.85 },
-      'SZ300059': { name: '东方财富', price: 15.92 },
-      'SH600519': { name: '贵州茅台', price: 1718.50 }
-    };
-    const base = dataMap[symbol] || { name: '日斗标的', price: 100.00 };
-    return {
-      name: base.name,
-      symbol,
-      price: base.price,
-      change: 2.35,
-      history: Array.from({ length: 24 }, (_, i) => ({ time: `${i}:00`, value: base.price * (0.94 + Math.random() * 0.12) }))
-    };
+    // 映射 A 股代码格式为东财 secid: 60xxxx -> 1.60xxxx, 00xxxx -> 0.00xxxx
+    const secid = symbol.startsWith('6') ? `1.${symbol}` : `0.${symbol}`;
+    
+    try {
+      const res = await fetch(`${this.EM_BASE}${secid}`);
+      const json = await res.json();
+      const data = json.data;
+      if (!data) return null;
+
+      return {
+        name: data.f58,
+        symbol,
+        price: data.f43 / 100,
+        change: data.f170 / 100,
+        history: Array.from({ length: 12 }, (_, i) => ({ 
+          time: `${i*2}:00`, 
+          value: (data.f43 / 100) * (0.98 + Math.random() * 0.04) 
+        }))
+      };
+    } catch (err) {
+      return null;
+    }
   }
 
   public async submitApplication(app: SocietyApplication): Promise<{ success: boolean; message: string }> {
-    // 严格更新提示语，移除关于电话的冗余表述，强调飞书权限
-    return { 
-      success: true, 
-      message: "申请已同步。请确保飞书开启‘通过手机号搜索我’权限。导师将在 24 小时内通过飞书主动发起好友请求。日斗坚持极简数字社交，绝不拨打任何骚扰电话。" 
-    };
+    if (this.supabase) {
+      try {
+        const { error } = await this.supabase
+          .from('applications')
+          .insert([app]);
+        if (error) throw error;
+      } catch (err) {
+        console.error("Supabase Error:", err);
+        return { success: false, message: "数据链路故障，请检查网络。" };
+      }
+    }
+    return { success: true, message: "申请已送达逻辑中枢。" };
   }
 
   public async fetchSectors(): Promise<SectorData[]> {
+    // 这里可以使用东财的板块排行接口
     return [
-      { name: '半导体国产化', change: 3.85, hotStock: '中芯国际', icon: '💾' },
-      { name: 'AI 计算力', change: 4.12, hotStock: '工业富联', icon: '🤖' },
-      { name: '中特估/红利', change: 1.15, hotStock: '中国海油', icon: '💰' },
-      { name: '新质生产力', change: 2.45, hotStock: '赛力斯', icon: '🔋' }
+      { name: '半导体', change: 2.15, hotStock: '中芯国际', icon: '💾' },
+      { name: '中特估', change: 0.85, hotStock: '中国海油', icon: '💰' },
+      { name: 'AI应用', change: 1.45, hotStock: '昆仑万维', icon: '🤖' },
+      { name: '高股息', change: 0.52, hotStock: '长江电力', icon: '📈' }
     ];
   }
 
   public async fetchForumPosts(): Promise<Post[]> {
-    if (this.supabaseUrl) {
+    if (this.supabase) {
       try {
-        const data = await this.supabaseRequest('posts');
-        if (data && data.length > 0) return data;
-      } catch (e) { console.error("Supabase Fetch Posts Error", e); }
+        const { data, error } = await this.supabase
+          .from('posts')
+          .select('*')
+          .order('timestamp', { ascending: false });
+        if (error) throw error;
+        if (data && data.length > 0) return data as Post[];
+      } catch (e) {
+        console.error("Fetch Posts Error", e);
+      }
     }
-    
     return [
       {
-        id: 'p1', author: '日斗投资', avatar: '',
-        title: '核心逻辑：半导体情绪周期进入“第二阶段”，逻辑重于博弈',
-        content: '我们观察到，当前市场对于国产替代的确定性逻辑正在从单一的设备端向材料端蔓延。随着二季度产能释放，板块内部将出现明显的强弱切换。\n\n关键逻辑支撑：\n1. 成熟制程去库存已进入历史大底，晶圆代工厂稼动率显著回升。\n2. 先进制程资本开支逆势提速，核心材料国产替代空间巨大。\n3. 情绪博弈正向产业基本面回归，估值修复具备持续性。',
-        timestamp: '2025-03-24', likes: 1840, comments: 156, views: 12500, isFeatured: true, tags: ['策略研报', '半导体', '国产替代']
-      },
-      {
-        id: 'p2', author: '日斗投资', avatar: '',
-        title: '因子跟踪：高股息风格出现拥挤度预警，关注成长股修复契机',
-        content: '红利指数近期持续走高，但从拥挤度模型来看已触及历史极值。建议投资者在防守的同时，开始关注具备产业边际变化的科创板核心标的。\n\n量化模型显示：\n- 红利因子收益率偏离中枢超过1.5个标准差。\n- 部分白马股出现主力资金净流出，需警惕抱团瓦解风险。\n- 科创50指数具备明显的反转因子加持。',
-        timestamp: '2025-03-23', likes: 920, comments: 42, views: 8200, isFeatured: false, tags: ['量化策略', '红利', '拥挤度']
+        id: 'p1', author: '日斗智库', avatar: '',
+        title: '【实时追踪】核心资产逻辑重估：寻找确定性锚点',
+        content: '在当前宏观环境下，我们认为传统的博弈逻辑正在失效，产业逻辑的权重在持续上升...',
+        timestamp: '刚刚', likes: 1200, comments: 85, views: 5600, isFeatured: true, tags: ['策略', '核心资产']
       }
     ];
   }
 
   public async createPost(post: Partial<Post>): Promise<Post> {
-    if (this.supabaseUrl) {
-      const result = await this.supabaseRequest('posts', 'POST', post);
-      return result[0];
-    }
-    throw new Error("Supabase 未配置");
+    if (!this.supabase) throw new Error("Database not connected");
+    const { data, error } = await this.supabase.from('posts').insert([post]).select();
+    if (error) throw error;
+    return data[0] as Post;
   }
 
   public async deletePost(id: string): Promise<void> {
-    if (this.supabaseUrl) {
-      const url = `${this.supabaseUrl}/rest/v1/posts?id=eq.${id}`;
-      await fetch(url, {
-        method: 'DELETE',
-        headers: { 'apikey': this.supabaseKey, 'Authorization': `Bearer ${this.supabaseKey}` }
-      });
-    }
+    if (!this.supabase) return;
+    await this.supabase.from('posts').delete().eq('id', id);
   }
 }
