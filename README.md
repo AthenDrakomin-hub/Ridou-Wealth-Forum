@@ -9,7 +9,7 @@
 - **行情中心**：毫秒级 A股/港股 指数与个股动态看板。
 - **私享会协作**：基于飞书数字底座的 admission 审核系统。
 - **实时快讯**：集成 7x24 小时高频财经动态流。
-- **AI智能分析**：基于Google Gemini的智能投研助手。
+- **AI智能分析**：基于Groq API的智能投研助手（LLaMA3模型）。
 
 ---
 
@@ -22,10 +22,12 @@
 
 | 变量名 | 描述 | 示例值 |
 | :--- | :--- | :--- |
-| `SUPABASE_URL` | Supabase 数据库连接地址 | `https://xyz.supabase.co` |
+| `SENTRY_DSN` | Sentry 错误监控 DSN | `https://xyz@o123.ingest.sentry.io/456` |
+| `SUPABASE_URL` | Supabase 数据库连接地址 | `https://insqodihetuyywthnrkb.supabase.co` |
 | `SUPABASE_ANON_KEY` | Supabase 匿名访问密钥 | `eyJhbG...` |
-| `MARKET_DATA_API_URL` | 第三方行情接口地址 | `https://api.market.com` |
-| `GEMINI_API_KEY` | Google Gemini API 密钥 | `AIzaSyC...` |
+| `GROQ_API_KEY` | Groq API 密钥 (免费替代Gemini) | `gsk_...` |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase 公共URL | `https://insqodihetuyywthnrkb.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase 公共匿名密钥 | `eyJhbG...` |
 
 ### B. 部署步骤
 1. 将代码推送至 GitHub/GitLab。
@@ -54,7 +56,7 @@
 - **Performance**: React Window (虚拟滚动) + Lazy Loading (代码分割)
 - **Infrastructure**: ESM (Native Browser Support)
 - **Monitoring**: Sentry (错误监控)
-- **AI Services**: Google Gemini (智能分析)
+- **AI Services**: Groq API (LLaMA3, 免费替代方案)
 
 ---
 
