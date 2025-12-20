@@ -23,7 +23,7 @@ export default defineConfig(({ mode }) => {
         'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
         'process.env.SENTRY_DSN': JSON.stringify(env.SENTRY_DSN),
         'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY)
       },
       resolve: {
         alias: {
@@ -42,7 +42,8 @@ export default defineConfig(({ mode }) => {
               // 添加更多细粒度的代码分割
               'react-window': ['react-window'],
               'supabase': ['@supabase/supabase-js'],
-              'gemini': ['@google/genai']
+              'gemini': ['@google/genai'],
+              'groq': ['groq-sdk']
             }
           }
         },

@@ -5,7 +5,7 @@ import PostItem from './components/PostItem';
 import Logo from './components/Logo';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { DataService } from './services/api';
-import { GeminiService } from './services/gemini';
+import { GroqService } from './services/groqService';
 import { Post, NewsItem, MarketIndex, SocietyApplication } from './types';
 
 const RealtimeQuotes = lazy(() => import('./components/RealtimeQuotes'));
@@ -268,7 +268,7 @@ const App: React.FC = () => {
     setAiChatHistory(prev => [...prev, { role: 'user', parts: [{ text: userMsg }] }]);
 
     try {
-      const result = await GeminiService.getInstance().chat(userMsg, aiChatHistory);
+      const result = await GroqService.getInstance().chat(userMsg, aiChatHistory);
       setAiChatHistory(result.history);
     } catch (err: any) {
       setAiChatHistory(prev => [...prev, { 
