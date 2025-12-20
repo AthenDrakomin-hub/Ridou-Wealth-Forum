@@ -11,6 +11,10 @@ export class DataService {
   private static instance: DataService;
   private supabase: SupabaseClient | null = null;
   
+  // 请求缓存
+  private cache = new Map<string, { data: any; timestamp: number }>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
+  
   // 东方财富 API 基础路径
   private EM_BASE = "https://push2.eastmoney.com/api/qt/stock/get?fields=f43,f170,f169,f168,f167,f58&secid=";
   // 新浪快讯 API 基础路径
@@ -34,11 +38,30 @@ export class DataService {
   public isConnected(): boolean {
     return this.supabase !== null;
   }
+  
+  private getCachedData(key: string) {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      return cached.data;
+    }
+    return null;
+  }
+  
+  private setCachedData(key: string, data: any) {
+    this.cache.set(key, { data, timestamp: Date.now() });
+  }
 
   /**
    * 获取 7x24 小时真实快讯
    */
   public async fetchNews(): Promise<NewsItem[]> {
+    // 检查缓存
+    const cacheKey = 'news';
+    const cachedData = this.getCachedData(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
     try {
       // 使用公共代理以解决开发环境下的跨域问题
       const proxyUrl = "https://api.allorigins.win/raw?url=";
@@ -46,7 +69,7 @@ export class DataService {
       const json = await response.json();
       
       if (json?.result?.data?.feed?.list) {
-        return json.result.data.feed.list.map((item: any) => ({
+        const newsData = json.result.data.feed.list.map((item: any) => ({
           id: item.id.toString(),
           title: item.content,
           source: '新浪财经',
@@ -55,14 +78,22 @@ export class DataService {
           category: '宏观',
           sentiment: item.content.includes('利好') || item.content.includes('大涨') ? 'positive' : 'neutral'
         }));
+        
+        // 缓存数据
+        this.setCachedData(cacheKey, newsData);
+        return newsData;
       }
     } catch (err) {
       console.warn("Real-time news fetch failed, using fallback.", err);
     }
 
-    return [
+    const fallbackData = [
       { id: 'f1', title: '【系统提示】正在尝试连接实时财经信号源...', source: '系统', url: '#', timestamp: '--:--', category: '宏观', sentiment: 'neutral' }
     ];
+    
+    // 缓存后备数据
+    this.setCachedData(cacheKey, fallbackData);
+    return fallbackData;
   }
 
   /**
@@ -70,6 +101,13 @@ export class DataService {
    * 0.399001 (深证成指), 1.000001 (上证指数), 0.399006 (创业板), 100.HSI (恒指)
    */
   public async fetchMarketIndices(): Promise<MarketIndex[]> {
+    // 检查缓存
+    const cacheKey = 'marketIndices';
+    const cachedData = this.getCachedData(cacheKey);
+    if (cachedData) {
+      return cachedData;
+    }
+    
     const symbols = [
       { id: '1.000001', name: '上证指数' },
       { id: '0.399001', name: '深证成指' },
@@ -96,14 +134,22 @@ export class DataService {
         };
       }));
 
-      return results.filter(r => r !== null) as MarketIndex[];
+      const marketData = results.filter(r => r !== null) as MarketIndex[];
+      
+      // 缓存数据
+      this.setCachedData(cacheKey, marketData);
+      return marketData;
     } catch (err) {
       console.warn("Index fetch failed, using demo data.", err);
       // Fallback
-      return [
+      const fallbackData = [
         { name: '上证指数', value: 3021.45, change: 0.15, changeAmount: 4.5 },
         { name: '深证成指', value: 9451.12, change: -0.21, changeAmount: -15.4 }
       ];
+      
+      // 缓存后备数据
+      this.setCachedData(cacheKey, fallbackData);
+      return fallbackData;
     }
   }
 

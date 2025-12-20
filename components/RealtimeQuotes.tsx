@@ -1,7 +1,25 @@
 
 import React, { useEffect, useRef, useMemo } from 'react';
-import * as echarts from 'echarts';
+import * as echarts from 'echarts/core';
+import { LineChart } from 'echarts/charts';
+import {
+  TooltipComponent,
+  GridComponent,
+  LegendComponent,
+  AxisPointerComponent
+} from 'echarts/components';
+import { CanvasRenderer } from 'echarts/renderers';
 import { MarketIndex } from '../types';
+
+// 注册必需的组件以减小包体积
+echarts.use([
+  LineChart,
+  TooltipComponent,
+  GridComponent,
+  LegendComponent,
+  AxisPointerComponent,
+  CanvasRenderer
+]);
 
 interface RealtimeQuotesProps {
   indices: MarketIndex[];

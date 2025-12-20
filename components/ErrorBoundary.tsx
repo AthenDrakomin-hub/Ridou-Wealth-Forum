@@ -1,5 +1,6 @@
 
 import React, { ErrorInfo, ReactNode } from 'react';
+import * as Sentry from "@sentry/react";
 
 interface Props {
   /**
@@ -38,6 +39,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Log the error to an error reporting service
     console.error('Uncaught error:', error, errorInfo);
+    
+    // 生产环境上报错误到Sentry
+    if (process.env.NODE_ENV === 'production') {
+      Sentry.captureException(error);
+    }
   }
 
   public render(): ReactNode {
@@ -61,9 +67,11 @@ export class ErrorBoundary extends React.Component<Props, State> {
           >
             刷新页面恢复
           </button>
-          <pre className="mt-8 p-4 bg-slate-200 rounded-xl text-[10px] text-slate-500 max-w-full overflow-auto text-left">
-            {error?.toString()}
-          </pre>
+          {process.env.NODE_ENV === 'development' && (
+            <pre className="mt-8 p-4 bg-slate-200 rounded-xl text-[10px] text-slate-500 max-w-full overflow-auto text-left">
+              {error?.toString()}
+            </pre>
+          )}
         </div>
       );
     }

@@ -1,6 +1,7 @@
 
 import React, { useMemo } from 'react';
-import { LineChart, Line, ResponsiveContainer, YAxis, Tooltip } from 'recharts';
+import { LineChart, Line, YAxis, Tooltip } from 'recharts';
+import { ResponsiveContainer } from 'recharts/lib/component/ResponsiveContainer';
 
 interface ChartProps {
   id: string;
