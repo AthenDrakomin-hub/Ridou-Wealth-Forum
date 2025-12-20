@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { VariableSizeList } from 'react-window';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { NewsItem } from '../types';
 import { CATEGORY_STYLE } from '../utils/constants';
 
@@ -32,15 +32,15 @@ const VirtualizedNewsList: React.FC<{
   itemHeight?: number;
 }> = ({ news, itemHeight = 80 }) => {
   const [height, setHeight] = useState(400);
+  const parentRef = React.useRef<HTMLDivElement>(null);
 
-  // 使用useCallback优化getItemSize函数
-  const getItemSize = useCallback((index: number) => {
-    // 可以根据内容动态调整高度
-    return itemHeight;
-  }, [itemHeight]);
-
-  // 使用useMemo优化itemData
-  const itemData = useMemo(() => news, [news]);
+  // 使用TanStack Virtual的useVirtualizer
+  const rowVirtualizer = useVirtualizer({
+    count: news.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => itemHeight,
+    overscan: 5,
+  });
 
   useEffect(() => {
     // 动态计算容器高度
@@ -74,25 +74,35 @@ const VirtualizedNewsList: React.FC<{
     };
   }, []);
 
-  // 使用useCallback优化rowRenderer
-  const rowRenderer = useCallback(({ index, style }: { index: number; style: React.CSSProperties }) => (
-    <NewsItemRow 
-      item={itemData[index]} 
-      style={style} 
-    />
-  ), [itemData]);
-
   return (
-    <VariableSizeList
-      height={height}
-      itemCount={itemData.length}
-      itemSize={getItemSize}
-      width="100%"
-      itemData={itemData}
-      overscanCount={5} // 预渲染额外的行以提高滚动性能
-    >
-      {rowRenderer}
-    </VariableSizeList>
+    <div ref={parentRef} style={{ height: `${height}px`, overflow: 'auto' }}>
+      <div
+        style={{
+          height: `${rowVirtualizer.getTotalSize()}px`,
+          width: '100%',
+          position: 'relative',
+        }}
+      >
+        {rowVirtualizer.getVirtualItems().map((virtualItem) => (
+          <div
+            key={virtualItem.key}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: `${virtualItem.size}px`,
+              transform: `translateY(${virtualItem.start}px)`,
+            }}
+          >
+            <NewsItemRow 
+              item={news[virtualItem.index]} 
+              style={{}}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 };
 

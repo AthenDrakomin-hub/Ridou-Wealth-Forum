@@ -40,7 +40,7 @@ export default defineConfig(({ mode }) => {
               recharts: ['recharts', 'recharts/lib/component/ResponsiveContainer'],
               utils: ['./utils/formatters.ts'],
               // 添加更多细粒度的代码分割
-              'react-window': ['react-window'],
+              'tanstack': ['@tanstack/react-virtual'],
               'supabase': ['@supabase/supabase-js'],
               'gemini': ['@google/genai'],
               'groq': ['groq-sdk']
