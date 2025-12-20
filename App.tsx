@@ -606,7 +606,7 @@ const App: React.FC = () => {
               <div className="space-y-6">
                 <h2 className="text-4xl md:text-7xl font-serif font-bold italic text-white tracking-tighter leading-none">关于我们</h2>
                 <p className="text-slate-400 text-lg md:text-2xl font-light italic max-w-3xl mx-auto">
-                  证裕投资咨询有限公司 · 日斗财富论坛
+                  日斗投资咨询有限公司 · 日斗财富论坛
                 </p>
               </div>
             </div>
@@ -657,7 +657,7 @@ const App: React.FC = () => {
                       <div className="w-24 h-24 bg-gradient-to-br from-amber-500 to-amber-700 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl">
                         <span className="text-4xl">🔱</span>
                       </div>
-                      <h4 className="text-2xl font-serif font-bold italic text-white tracking-tighter mb-2">证裕投资咨询有限公司</h4>
+                      <h4 className="text-2xl font-serif font-bold italic text-white tracking-tighter mb-2">日斗投资咨询有限公司</h4>
                       <p className="text-amber-500 text-sm font-black uppercase tracking-widest">ZHENGYU INVESTMENT CONSULTING CO., LTD.</p>
                     </div>
                     
@@ -752,7 +752,7 @@ const App: React.FC = () => {
               <div className="max-w-4xl mx-auto text-center space-y-6">
                 <h4 className="text-xl font-serif font-bold italic text-white tracking-tighter">合规声明</h4>
                 <p className="text-slate-400 text-sm leading-relaxed">
-                  本平台所有内容由证裕投资咨询有限公司提供，仅供投研交流使用，不构成任何投资建议。
+                  本平台所有内容由日斗投资咨询有限公司提供，仅供投研交流使用，不构成任何投资建议。
                   投资者应自主决策并承担相应风险。市场有风险，入市需谨慎。
                 </p>
                 <p className="text-slate-500 text-xs mt-8">
