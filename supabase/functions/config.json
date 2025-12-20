@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "get-posts": {
+      "enabled": true,
+      "cors": {
+        "allowed_origins": ["*"]
+      }
+    }
+  }
+}
