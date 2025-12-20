@@ -21,9 +21,7 @@ export default defineConfig(({ mode }) => {
       ],
       define: {
         'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
-        'process.env.SENTRY_DSN': JSON.stringify(env.SENTRY_DSN),
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GROQ_API_KEY': JSON.stringify(env.GROQ_API_KEY)
+        'process.env.SENTRY_DSN': JSON.stringify(env.SENTRY_DSN)
       },
       resolve: {
         alias: {
@@ -32,7 +30,7 @@ export default defineConfig(({ mode }) => {
       },
       build: {
         rollupOptions: {
-          external: ['react-is', '@sentry/tracing'],
+          external: ['@sentry/tracing'],
           output: {
             manualChunks: {
               vendor: ['react', 'react-dom'],
@@ -41,9 +39,7 @@ export default defineConfig(({ mode }) => {
               utils: ['./utils/formatters.ts'],
               // 添加更多细粒度的代码分割
               'tanstack': ['@tanstack/react-virtual'],
-              'supabase': ['@supabase/supabase-js'],
-              'gemini': ['@google/genai'],
-              'groq': ['groq-sdk']
+              'supabase': ['@supabase/supabase-js']
             }
           }
         },

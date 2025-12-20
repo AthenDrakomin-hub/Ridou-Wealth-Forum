@@ -1,11 +1,9 @@
-
 import React, { useState, useEffect, useRef, useCallback, Suspense, lazy, useMemo } from 'react';
 import Sidebar from './components/Sidebar';
 import PostItem from './components/PostItem';
 import Logo from './components/Logo';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { DataService } from './services/api';
-import { GroqService } from './services/groqService';
 import { Post, NewsItem, MarketIndex, SocietyApplication } from './types';
 
 const RealtimeQuotes = lazy(() => import('./components/RealtimeQuotes'));
@@ -98,7 +96,7 @@ const FeishuGuideSection: React.FC = () => (
           <div className="bg-amber-600/10 border border-amber-600/20 p-5 rounded-2xl">
              <p className="text-amber-500 font-black text-center text-sm leading-relaxed tracking-wider">
                设置 &gt; 隐私 &gt; <br/>
-               <span className="text-lg">开启“通过手机号搜索我”</span>
+               <span className="text-lg">开启"通过手机号搜索我"</span>
              </p>
           </div>
           <p className="text-slate-600 text-[10px] font-bold text-center uppercase tracking-widest">
@@ -115,7 +113,7 @@ const FeishuGuideSection: React.FC = () => (
       </div>
       <h4 className="text-xl md:text-2xl font-black text-white uppercase tracking-[0.4em]">纯粹协作 · 飞书专属</h4>
       <p className="text-slate-400 text-lg leading-relaxed italic max-w-2xl mx-auto">
-        日斗秉持“低摩擦、高价值”的沟通原则。我们<span className="text-amber-500 font-black px-1 underline underline-offset-4 decoration-amber-500/30">承诺绝不拨打任何电话</span>。所有连接申请均由导师通过飞书账号实名发起，请在申请后留意飞书系统通知。
+        日斗秉持"低摩擦、高价值"的沟通原则。我们<span className="text-amber-500 font-black px-1 underline underline-offset-4 decoration-amber-500/30">承诺绝不拨打任何电话</span>。所有连接申请均由导师通过飞书账号实名发起，请在申请后留意飞书系统通知。
       </p>
     </div>
   </div>
@@ -177,13 +175,6 @@ const App: React.FC = () => {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // AI Logic Assistant State
-  const [isAiOpen, setIsAiOpen] = useState(false);
-  const [aiMessage, setAiMessage] = useState('');
-  const [aiChatHistory, setAiChatHistory] = useState<{role: 'user' | 'model', parts: {text: string}[]}[]>([]);
-  const [isAiThinking, setIsAiThinking] = useState(false);
-  const aiScrollRef = useRef<HTMLDivElement>(null);
-
   const [isAppModalOpen, setIsAppModalOpen] = useState(false);
   const [appData, setAppData] = useState<SocietyApplication>({
     name: '', phone: '', investYears: '', missingAbilities: '', learningExpectation: ''
@@ -193,45 +184,28 @@ const App: React.FC = () => {
   
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
-        setIsSearchFocused(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (aiScrollRef.current) {
-      aiScrollRef.current.scrollTo({ top: aiScrollRef.current.scrollHeight, behavior: 'smooth' });
-    }
-  }, [aiChatHistory, isAiThinking]);
-
   const fetchData = useCallback(async () => {
-    const ds = DataService.getInstance();
-    setDbConnected(ds.isConnected());
     try {
       const [newsData, postsData, indexData] = await Promise.all([
-        ds.fetchNews(),
-        ds.fetchForumPosts(),
-        ds.fetchMarketIndices()
+        DataService.getInstance().fetchNews(),
+        DataService.getInstance().fetchPosts(),
+        DataService.getInstance().fetchIndices()
       ]);
-
-      if (lastSeenNewsId && newsData.length > 0 && newsData[0].id !== lastSeenNewsId) {
-        const newIndex = newsData.findIndex(item => item.id === lastSeenNewsId);
-        const count = newIndex === -1 ? newsData.length : newsData.length;
-        if (count > 0) setUnreadNewsCount(prev => prev + count);
-      } else if (!lastSeenNewsId && newsData.length > 0) {
-        setLastSeenNewsId(newsData[0].id);
-      }
-
+      
       setNews(newsData);
       setPosts(postsData);
       setIndices(indexData);
-    } catch (err) {
-      console.error("Data sync error", err);
+      setDbConnected(DataService.getInstance().isConnected());
+      
+      // 计算未读快讯数量
+      if (lastSeenNewsId && newsData.length > 0) {
+        const lastSeenIndex = newsData.findIndex(item => item.id === lastSeenNewsId);
+        setUnreadNewsCount(lastSeenIndex > 0 ? lastSeenIndex : 0);
+      } else if (newsData.length > 0) {
+        setUnreadNewsCount(newsData.length);
+      }
+    } catch (error) {
+      console.error('数据获取失败:', error);
     } finally {
       setLoading(false);
     }
@@ -258,480 +232,827 @@ const App: React.FC = () => {
     scrollContainerRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
 
-  const handleAiSubmit = async (e?: React.FormEvent) => {
-    e?.preventDefault();
-    if (!aiMessage.trim() || isAiThinking) return;
-
-    const userMsg = aiMessage;
-    setAiMessage('');
-    setIsAiThinking(true);
-    setAiChatHistory(prev => [...prev, { role: 'user', parts: [{ text: userMsg }] }]);
-
-    try {
-      const result = await GroqService.getInstance().chat(userMsg, aiChatHistory);
-      setAiChatHistory(result.history);
-    } catch (err: any) {
-      setAiChatHistory(prev => [...prev, { 
-        role: 'model', 
-        parts: [{ text: `⚠️ 逻辑连接中断：${err.message || "请求超时"}` }] 
-      }]);
-    } finally {
-      setIsAiThinking(false);
+  const handleClickOutside = (event: MouseEvent) => {
+    if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+      setIsSearchFocused(false);
     }
   };
 
-  const searchSuggestions = useMemo(() => {
-    if (!searchQuery.trim()) return [];
-    const query = searchQuery.toLowerCase();
-    const results: SearchSuggestion[] = [];
+  useEffect(() => {
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
 
-    indices.forEach(idx => {
-      if (idx.name.toLowerCase().includes(query)) {
-        results.push({ id: `idx-${idx.name}`, type: '行情', title: idx.name, data: idx });
-      }
-    });
-
-    posts.forEach(p => {
-      if (p.title.toLowerCase().includes(query)) {
-        results.push({ id: `post-${p.id}`, type: '研报', title: p.title, data: p });
-      }
-    });
-
-    news.forEach(n => {
-      if (n.title.toLowerCase().includes(query)) {
-        results.push({ id: `news-${n.id}`, type: '快讯', title: n.title, data: n });
-      }
-    });
-
-    return results.slice(0, 10);
-  }, [searchQuery, indices, posts, news]);
-
-  const handleSuggestionClick = (suggestion: SearchSuggestion) => {
-    setSearchQuery('');
-    setIsSearchFocused(false);
-    if (suggestion.type === '研报') {
-      setSelectedPost(suggestion.data);
-    } else if (suggestion.type === '行情') {
-      handleTabChange('markets');
-    } else if (suggestion.type === '快讯') {
-      handleTabChange('home');
-    }
-  };
-
-  const homeContent = useMemo(() => (
-    <div className="adaptive-container space-y-8 md:space-y-16 px-4 py-6 md:py-12 page-enter">
-      <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-6 gap-4 md:gap-8 lg:gap-10 xl:gap-12 3xl:gap-16">
-        {indices.map(idx => (
-          <div key={idx.name} className="premium-card p-6 md:p-8 2xl:p-10 3xl:p-12 rounded-[1.5rem] md:rounded-[2.5rem] 3xl:rounded-[3.5rem] bg-white border border-slate-50 group hover:-translate-y-2 transition-transform duration-500 shadow-sm hover:shadow-2xl">
-            <p className="text-[9px] md:text-[11px] 2xl:text-xs 3xl:text-sm font-black text-slate-400 mb-4 md:mb-6 uppercase tracking-[0.2em]">{idx.name}</p>
-            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-1">
-              <span className={`text-xl md:text-3xl 2xl:text-4xl 3xl:text-5xl font-black tabular-nums tracking-tighter ${idx.change >= 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                {idx.value.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-              </span>
-              <span className={`text-[10px] md:text-xs 2xl:text-sm 3xl:text-base font-black px-2 py-0.5 rounded-lg w-fit ${idx.change >= 0 ? 'bg-red-50 text-red-400' : 'bg-emerald-50 text-emerald-500'}`}>
-                {idx.change >= 0 ? '+' : ''}{idx.change}%
-              </span>
+  const renderContent = () => {
+    switch (activeTab) {
+      case 'home':
+        return (
+          <div className="space-y-12 md:space-y-24">
+            {/* 头部横幅 */}
+            <section className="text-center space-y-8 py-12">
+              <div className="inline-flex items-center gap-3 bg-amber-500/10 px-6 py-3 rounded-full border border-amber-500/20">
+                <span className="text-2xl">💰</span>
+                <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.3em]">Ridou Wealth Forum</span>
+              </div>
+              
+              <div className="space-y-6">
+                <h1 className="text-4xl md:text-7xl font-serif font-bold italic text-white tracking-tighter leading-none">
+                  日斗财富论坛
+                </h1>
+                <p className="text-slate-400 text-lg md:text-2xl font-light italic max-w-3xl mx-auto">
+                  散户投资者的一站式聚合门户 · 市场新闻 · 数据洞察 · 内容合集 · 个股查询
+                </p>
+              </div>
+            </section>
+            
+            {/* 功能模块网格 */}
+            <section className="space-y-12">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                {/* 微信公众号合集 */}
+                <div 
+                  onClick={() => handleTabChange('wechat-collections')}
+                  className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 hover:scale-[1.02] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-green-500/10 rounded-xl flex items-center justify-center">
+                      <i className="fab fa-weixin text-2xl text-green-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">微信公众号合集</h3>
+                  </div>
+                  <p className="text-slate-400 mb-6">日斗投资官方公众号四大内容合集</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-500 text-sm font-black uppercase tracking-widest">View Collections</span>
+                    <i className="fas fa-arrow-right text-amber-500 group-hover:translate-x-1 transition-transform"></i>
+                  </div>
+                </div>
+                
+                {/* 百度百家号 */}
+                <div 
+                  onClick={() => handleTabChange('about')}
+                  className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 hover:scale-[1.02] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-blue-500/10 rounded-xl flex items-center justify-center">
+                      <i className="fab fa-baidu text-2xl text-blue-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">百度百家号</h3>
+                  </div>
+                  <p className="text-slate-400 mb-6">日斗投资企业认证官方账号</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-500 text-sm font-black uppercase tracking-widest">View Profile</span>
+                    <i className="fas fa-arrow-right text-amber-500 group-hover:translate-x-1 transition-transform"></i>
+                  </div>
+                </div>
+                
+                {/* 日斗动态 */}
+                <div 
+                  onClick={() => handleTabChange('daily-talk')}
+                  className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 hover:scale-[1.02] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-amber-500/10 rounded-xl flex items-center justify-center">
+                      <i className="fas fa-bullhorn text-2xl text-amber-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">日斗动态</h3>
+                  </div>
+                  <p className="text-slate-400 mb-6">官方公告与重要资讯</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-500 text-sm font-black uppercase tracking-widest">View Updates</span>
+                    <i className="fas fa-arrow-right text-amber-500 group-hover:translate-x-1 transition-transform"></i>
+                  </div>
+                </div>
+                
+                {/* 个股查询 */}
+                <div 
+                  onClick={() => handleTabChange('stock-query')}
+                  className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 hover:scale-[1.02] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center">
+                      <i className="fas fa-search-dollar text-2xl text-purple-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">个股查询</h3>
+                  </div>
+                  <p className="text-slate-400 mb-6">A股与港股代码查询</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-500 text-sm font-black uppercase tracking-widest">Query Stocks</span>
+                    <i className="fas fa-arrow-right text-amber-500 group-hover:translate-x-1 transition-transform"></i>
+                  </div>
+                </div>
+                
+                {/* 实时行情 */}
+                <div 
+                  onClick={() => handleTabChange('markets')}
+                  className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 hover:scale-[1.02] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-emerald-500/10 rounded-xl flex items-center justify-center">
+                      <i className="fas fa-chart-line text-2xl text-emerald-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">实时行情</h3>
+                  </div>
+                  <p className="text-slate-400 mb-6">全球市场实时数据</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-500 text-sm font-black uppercase tracking-widest">View Markets</span>
+                    <i className="fas fa-arrow-right text-amber-500 group-hover:translate-x-1 transition-transform"></i>
+                  </div>
+                </div>
+                
+                {/* 私享会申请 */}
+                <div 
+                  onClick={() => handleTabChange('private-society')}
+                  className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 hover:scale-[1.02] transition-all group cursor-pointer"
+                >
+                  <div className="flex items-center gap-4 mb-6">
+                    <div className="w-12 h-12 bg-red-500/10 rounded-xl flex items-center justify-center">
+                      <i className="fas fa-crown text-2xl text-red-500"></i>
+                    </div>
+                    <h3 className="text-xl font-bold text-white">私享会</h3>
+                  </div>
+                  <p className="text-slate-400 mb-6">免费申请加入精英投研社群</p>
+                  <div className="flex items-center justify-between">
+                    <span className="text-amber-500 text-sm font-black uppercase tracking-widest">Apply Free</span>
+                    <i className="fas fa-arrow-right text-amber-500 group-hover:translate-x-1 transition-transform"></i>
+                  </div>
+                </div>
+              </div>
+            </section>
+            
+            {/* 最新动态 */}
+            <section className="space-y-8">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl md:text-4xl font-serif font-bold italic text-white tracking-tighter">最新动态</h2>
+                <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+                  <span className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${dbConnected ? 'bg-emerald-500' : 'bg-slate-300'} animate-pulse`}></span>
+                  <span className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{dbConnected ? 'Live' : 'Demo'}</span>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {posts.slice(0, 4).map(post => (
+                  <PostItem 
+                    key={post.id} 
+                    post={post} 
+                    onClick={setSelectedPost}
+                  />
+                ))}
+              </div>
+              
+              <div className="text-center pt-8">
+                <button 
+                  onClick={() => handleTabChange('daily-talk')}
+                  className="inline-flex items-center gap-2 text-amber-500 hover:text-amber-400 font-black text-sm uppercase tracking-widest"
+                >
+                  查看所有动态
+                  <i className="fas fa-arrow-right text-xs"></i>
+                </button>
+              </div>
+            </section>
+            
+            <Suspense fallback={<ComponentLoader />}>
+              <RealtimeNewsFeed 
+                news={news} 
+                unreadCount={unreadNewsCount} 
+                onMarkAllAsRead={handleMarkAllAsRead}
+              />
+            </Suspense>
+          </div>
+        );
+        
+      case 'markets':
+        return (
+          <div className="space-y-12 md:space-y-24">
+            <div className="space-y-8">
+              <div className="flex items-center justify-between">
+                <h2 className="text-2xl md:text-4xl font-serif font-bold italic text-slate-900 tracking-tighter">实时行情</h2>
+                <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
+                  <span className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${dbConnected ? 'bg-emerald-500' : 'bg-slate-300'} animate-pulse`}></span>
+                  <span className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{dbConnected ? 'Live' : 'Demo'}</span>
+                </div>
+              </div>
+              
+              <Suspense fallback={<ComponentLoader />}>
+                <RealtimeQuotes indices={indices} />
+              </Suspense>
+            </div>
+            
+            <div className="space-y-12">
+              <div className="text-center space-y-6">
+                <h3 className="text-3xl md:text-5xl font-serif font-bold italic text-white tracking-tighter">核心资产配置</h3>
+                <p className="text-slate-400 text-lg md:text-xl font-light italic">Global Macro Allocation Framework</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+                {[
+                  { 
+                    title: '美股科技', 
+                    desc: 'FAANG+T 组合深度拆解', 
+                    icon: '🇺🇸', 
+                    color: 'from-blue-500/10 to-blue-600/20 border-blue-500/20 text-blue-400',
+                    tags: ['NVDA', 'MSFT', 'GOOGL']
+                  },
+                  { 
+                    title: 'A股核心', 
+                    desc: '沪深300成分股权重分析', 
+                    icon: '🇨🇳', 
+                    color: 'from-amber-500/10 to-amber-600/20 border-amber-500/20 text-amber-500',
+                    tags: ['茅台', '宁德', '招行']
+                  },
+                  { 
+                    title: '全球债券', 
+                    desc: '美债收益率曲线监测', 
+                    icon: '💵', 
+                    color: 'from-emerald-500/10 to-emerald-600/20 border-emerald-500/20 text-emerald-500',
+                    tags: ['TLT', 'SHY', 'IEF']
+                  }
+                ].map((asset, idx) => (
+                  <div key={idx} className={`bg-gradient-to-br ${asset.color} border rounded-[2rem] p-8 md:p-10 space-y-6 hover:scale-105 transition-all group cursor-pointer active-scale`}>
+                    <div className="flex items-center gap-4">
+                      <span className="text-3xl">{asset.icon}</span>
+                      <div>
+                        <h4 className="text-xl font-bold text-white">{asset.title}</h4>
+                        <p className="text-slate-400 text-xs font-medium">{asset.desc}</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      {asset.tags.map((tag, tagIdx) => (
+                        <span key={tagIdx} className="text-[9px] font-black text-white/60 uppercase tracking-widest bg-white/10 px-3 py-1 rounded-lg">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    
+                    <div className="pt-4">
+                      <button className="w-full py-3 bg-white/10 hover:bg-white/20 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all">
+                        查看深度逻辑 ↗
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
-        ))}
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 xl:gap-16">
-        <div className="lg:col-span-8 space-y-10 md:space-y-16">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-8 lg:gap-10">
-            <div onClick={() => handleTabChange('strategy')} className="bg-[#0f172a] p-8 md:p-12 rounded-[2.5rem] text-white cursor-pointer active-scale shadow-2xl group border border-white/5 relative overflow-hidden transition-all duration-500">
-               <div className="flex justify-between items-start mb-8 md:mb-12 relative z-10">
-                 <h3 className="text-2xl md:text-4xl font-serif font-bold italic tracking-tighter">日斗策略</h3>
-                 <span className="text-amber-500 text-xl md:text-2xl opacity-40 group-hover:opacity-100 italic">25 articles</span>
-               </div>
-               <p className="font-black text-slate-500 text-[10px] uppercase tracking-[0.4em]">Strategic Intelligence Hub</p>
+        );
+        
+      case 'private-society':
+        return (
+          <div className="space-y-12 md:space-y-24">
+            <div className="text-center space-y-8">
+              <div className="inline-flex items-center gap-3 bg-amber-500/10 px-6 py-3 rounded-full border border-amber-500/20">
+                <span className="text-2xl">🔱</span>
+                <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.3em]">Private Society</span>
+              </div>
+              
+              <div className="space-y-6">
+                <h2 className="text-4xl md:text-7xl font-serif font-bold italic text-white tracking-tighter leading-none">日斗私享会</h2>
+                <p className="text-slate-400 text-lg md:text-2xl font-light italic max-w-3xl mx-auto">
+                  精英投研社群 · 逻辑共振场 · 核心资产池
+                </p>
+              </div>
             </div>
-            <div onClick={() => handleTabChange('daily-talk')} className="bg-amber-600 p-8 md:p-12 rounded-[2.5rem] text-white cursor-pointer active-scale shadow-2xl group border border-amber-500 relative overflow-hidden transition-all duration-500">
-               <div className="flex justify-between items-start mb-8 md:mb-12 relative z-10">
-                 <h3 className="text-2xl md:text-4xl font-serif font-bold italic text-slate-950 tracking-tighter">财经说</h3>
-                 <span className="text-white text-xl md:text-2xl opacity-40 group-hover:opacity-100 italic">Daily Feed</span>
-               </div>
-               <p className="font-black text-amber-950/40 text-[10px] uppercase tracking-[0.4em]">Morning & Evening Update</p>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-24 items-center">
+              <div className="space-y-8">
+                <div className="space-y-6">
+                  <h3 className="text-2xl md:text-4xl font-serif font-bold italic text-white tracking-tighter">核心价值</h3>
+                  <div className="space-y-6">
+                    {[
+                      { icon: '🧠', title: '深度逻辑拆解', desc: '每周精选行业与个股，穿透表象直达本质' },
+                      { icon: '📊', title: '实时资产监测', desc: '核心持仓动态追踪，把握调仓时机' },
+                      { icon: '🤝', title: '精英圈层链接', desc: '与同频投资者共建认知护城河' }
+                    ].map((item, idx) => (
+                      <div key={idx} className="flex items-start gap-4 p-5 bg-white/[0.02] border border-white/5 rounded-[1.5rem] hover:bg-white/[0.04] transition-all group">
+                        <span className="text-2xl mt-1">{item.icon}</span>
+                        <div>
+                          <h4 className="text-white font-bold text-lg mb-1">{item.title}</h4>
+                          <p className="text-slate-400 text-sm font-medium">{item.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <div className="pt-6">
+                  <button 
+                    onClick={() => setIsAppModalOpen(true)}
+                    className="w-full bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white py-6 rounded-[2rem] font-black text-xl active-scale shadow-2xl transition-all border border-white/10 group"
+                  >
+                    立即申请席位 
+                    <span className="inline-block ml-2 group-hover:translate-x-1 transition-transform">↗</span>
+                  </button>
+                </div>
+              </div>
+              
+              <div className="space-y-8">
+                <div className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-amber-600/10 rounded-[3rem] p-10 md:p-16 text-center space-y-8 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-10 opacity-5 group-hover:opacity-10 transition-opacity">
+                    <i className="fas fa-crown text-8xl text-amber-500"></i>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    <div className="inline-flex items-center gap-3 bg-amber-500/10 px-6 py-3 rounded-full border border-amber-500/20">
+                      <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.3em]">Premium Benefits</span>
+                    </div>
+                    
+                    <h4 className="text-2xl md:text-3xl font-serif font-bold italic text-white tracking-tighter">会员权益</h4>
+                  </div>
+                  
+                  <div className="space-y-6 pt-8">
+                    {[
+                      { icon: '🔒', title: '独家研报', desc: '每周3份深度行业报告' },
+                      { icon: '🔔', title: '预警信号', desc: '核心持仓异动即时提醒' },
+                      { icon: '👥', title: '闭门研讨', desc: '月度线上逻辑共振会议' },
+                      { icon: '🎓', title: '导师辅导', desc: '一对一投资框架指导' }
+                    ].map((benefit, idx) => (
+                      <div key={idx} className="flex items-center gap-4 p-4 bg-white/[0.02] border border-white/5 rounded-[1.5rem]">
+                        <span className="text-xl w-10 h-10 bg-amber-500/10 rounded-full flex items-center justify-center text-amber-500">{benefit.icon}</span>
+                        <div className="text-left">
+                          <h5 className="text-white font-bold">{benefit.title}</h5>
+                          <p className="text-slate-400 text-xs">{benefit.desc}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                <WechatSearchBanner 
+                  onClick={() => setConfirmingLink({
+                    title: "关注官方微信公众号",
+                    desc: "获取最新投研资讯与私享会动态",
+                    url: "#",
+                    isWechat: true,
+                    showBanner: true
+                  })}
+                />
+              </div>
+            </div>
+            
+            <FeishuGuideSection />
+          </div>
+        );
+        
+      case 'about':
+        return (
+          <div className="space-y-24 md:space-y-40">
+            <div className="text-center space-y-8">
+              <div className="inline-flex items-center gap-3 bg-slate-500/10 px-6 py-3 rounded-full border border-slate-500/20">
+                <span className="text-2xl">🏛️</span>
+                <span className="text-slate-500 font-black text-[10px] uppercase tracking-[0.3em]">Official Introduction</span>
+              </div>
+              
+              <div className="space-y-6">
+                <h2 className="text-4xl md:text-7xl font-serif font-bold italic text-white tracking-tighter leading-none">关于我们</h2>
+                <p className="text-slate-400 text-lg md:text-2xl font-light italic max-w-3xl mx-auto">
+                  证裕投资咨询有限公司 · 日斗财富论坛
+                </p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 lg:gap-24 items-center">
+              <div className="space-y-8">
+                <div className="space-y-6">
+                  <h3 className="text-2xl md:text-4xl font-serif font-bold italic text-white tracking-tighter">使命愿景</h3>
+                  <div className="space-y-6">
+                    <div className="p-8 bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem]">
+                      <h4 className="text-xl font-bold text-white mb-4">我们的使命</h4>
+                      <p className="text-slate-400 leading-relaxed italic">
+                        穿透市场噪音，重构产业逻辑。我们致力于帮助投资者发现具备全球竞争力的确定性资产，
+                        并通过系统化的方法论构建可持续的超额收益。
+                      </p>
+                    </div>
+                    
+                    <div className="p-8 bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem]">
+                      <h4 className="text-xl font-bold text-white mb-4">核心理念</h4>
+                      <div className="space-y-4">
+                        {[
+                          { title: '逻辑优先', desc: '超越数据表象，深挖驱动因子' },
+                          { title: '长期主义', desc: '专注具备时间价值的资产' },
+                          { title: '风险控制', desc: '将下行风险置于收益之前' }
+                        ].map((item, idx) => (
+                          <div key={idx} className="flex items-start gap-3">
+                            <span className="text-amber-500 mt-1">»</span>
+                            <div>
+                              <h5 className="text-white font-bold">{item.title}</h5>
+                              <p className="text-slate-400 text-sm">{item.desc}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-8">
+                <div className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[3rem] p-10 md:p-12 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-10 opacity-5">
+                    <i className="fas fa-building text-8xl text-white"></i>
+                  </div>
+                  
+                  <div className="space-y-8">
+                    <div className="text-center">
+                      <div className="w-24 h-24 bg-gradient-to-br from-amber-500 to-amber-700 rounded-[2rem] flex items-center justify-center mx-auto mb-6 shadow-2xl">
+                        <span className="text-4xl">🔱</span>
+                      </div>
+                      <h4 className="text-2xl font-serif font-bold italic text-white tracking-tighter mb-2">证裕投资咨询有限公司</h4>
+                      <p className="text-amber-500 text-sm font-black uppercase tracking-widest">ZHENGYU INVESTMENT CONSULTING CO., LTD.</p>
+                    </div>
+                    
+                    <div className="space-y-6 pt-6">
+                      <div className="flex items-center gap-4 p-5 bg-white/[0.02] border border-white/5 rounded-[1.5rem]">
+                        <span className="text-2xl text-amber-500">📍</span>
+                        <div>
+                          <h5 className="text-white font-bold">注册地址</h5>
+                          <p className="text-slate-400 text-sm">中国(上海)自由贸易试验区</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 p-5 bg-white/[0.02] border border-white/5 rounded-[1.5rem]">
+                        <span className="text-2xl text-amber-500">📝</span>
+                        <div>
+                          <h5 className="text-white font-bold">业务范围</h5>
+                          <p className="text-slate-400 text-sm">投资咨询 / 财经研究 / 资产管理</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 p-5 bg-white/[0.02] border border-white/5 rounded-[1.5rem]">
+                        <span className="text-2xl text-amber-500">⚖️</span>
+                        <div>
+                          <h5 className="text-white font-bold">合规声明</h5>
+                          <p className="text-slate-400 text-sm">本平台内容仅供投研交流，不构成投资建议</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { icon: '📧', title: '商务合作', desc: 'bd@zhengyutouzi.com' },
+                    { icon: '📱', title: '飞书协作', desc: '基于邀请制的私享会' }
+                  ].map((contact, idx) => (
+                    <div key={idx} className="p-6 bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[1.5rem] text-center">
+                      <span className="text-2xl mb-3 inline-block">{contact.icon}</span>
+                      <h5 className="text-white font-bold text-sm mb-1">{contact.title}</h5>
+                      <p className="text-slate-400 text-xs">{contact.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* 百度百家号信息 */}
+                <div className="mt-8 p-6 bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[1.5rem] text-center">
+                  <h4 className="text-xl font-bold text-white mb-4">百度百家号</h4>
+                  <p className="text-slate-400 mb-4">关注我们在百度百家号的企业认证账号</p>
+                  <div className="flex flex-col items-center">
+                    <p className="text-amber-500 font-bold mb-2">ID: 1834826396171131</p>
+                    <p className="text-slate-400 text-sm mb-4">类型：企业 &nbsp;&nbsp;|&nbsp;&nbsp; 领域：财经</p>
+                    <div className="bg-white p-2 rounded-lg">
+                      <img 
+                        src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://author.baidu.com/home/1834826396171131" 
+                        alt="百度百家号二维码" 
+                        className="w-24 h-24"
+                      />
+                    </div>
+                    <p className="text-slate-400 text-xs mt-2">扫码关注</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="space-y-16">
+              <div className="text-center space-y-6">
+                <h3 className="text-3xl md:text-5xl font-serif font-bold italic text-white tracking-tighter">核心团队</h3>
+                <p className="text-slate-400 text-lg md:text-xl font-light italic">Experience Across Global Markets</p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                {[
+                  { name: '张首席', role: 'Founder & Chief Strategist', desc: '前头部券商研究所所长，15年二级市场投研经验' },
+                  { name: '李总监', role: 'Quantitative Research Director', desc: '芝加哥大学金融学博士，量化投资专家' },
+                  { name: '王经理', role: 'Global Asset Allocation', desc: '伦敦政经学院经济学硕士，海外资产配置专家' }
+                ].map((member, idx) => (
+                  <div key={idx} className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 text-center space-y-6 hover:scale-105 transition-all group">
+                    <div className="w-20 h-20 bg-gradient-to-br from-amber-500/20 to-amber-700/20 rounded-[2rem] flex items-center justify-center mx-auto border border-amber-500/20 group-hover:border-amber-500/40 transition-all">
+                      <span className="text-3xl">👤</span>
+                    </div>
+                    <div className="space-y-3">
+                      <h4 className="text-xl font-bold text-white">{member.name}</h4>
+                      <p className="text-amber-500 text-xs font-black uppercase tracking-widest">{member.role}</p>
+                      <p className="text-slate-400 text-sm leading-relaxed">{member.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="border-t border-white/5 pt-16">
+              <div className="max-w-4xl mx-auto text-center space-y-6">
+                <h4 className="text-xl font-serif font-bold italic text-white tracking-tighter">合规声明</h4>
+                <p className="text-slate-400 text-sm leading-relaxed">
+                  本平台所有内容由证裕投资咨询有限公司提供，仅供投研交流使用，不构成任何投资建议。
+                  投资者应自主决策并承担相应风险。市场有风险，入市需谨慎。
+                </p>
+                <p className="text-slate-500 text-xs mt-8">
+                  Copyright © 2025 Ridou Investment Consulting Co., Ltd. All Rights Reserved.
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+        
+      case 'daily-talk':
+        return (
+          <div className="adaptive-container px-4 py-12 md:py-24 space-y-12 page-enter">
+            <div className="max-w-4xl mx-auto space-y-8">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-3 bg-amber-500/10 px-6 py-3 rounded-full border border-amber-500/20">
+                  <span className="text-2xl">📢</span>
+                  <span className="text-amber-500 font-black text-[10px] uppercase tracking-[0.3em]">Official Announcement</span>
+                </div>
+                <div className="flex items-center gap-2 bg-blue-500/10 px-4 py-2 rounded-full border border-blue-500/20">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-blue-400 font-black text-[10px] uppercase tracking-widest">官方认证</span>
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                <h2 className="text-4xl md:text-6xl font-serif font-bold italic text-white tracking-tighter">日斗动态</h2>
+                <p className="text-slate-400 text-lg md:text-xl font-light italic">
+                  来自日斗投资的官方公告与重要资讯
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                {[
+                  {
+                    title: "私享会第十届财富论坛即将开幕",
+                    content: "本届论坛将于2026年1月在北京举办，主题为'全球变局下的确定性机会'。欢迎已认证会员关注飞书日历推送。",
+                    date: "2025-12-20",
+                    tag: "活动预告"
+                  },
+                  {
+                    title: "关于近期市场波动的风险提示",
+                    content: "当前市场处于技术性调整阶段，建议投资者保持理性，严格遵循既定仓位管理原则。详细分析报告将于晚间发布。",
+                    date: "2025-12-19",
+                    tag: "风险提示"
+                  },
+                  {
+                    title: "新增港股通标的池调整公告",
+                    content: "根据最新港股通标的调整，我们将同步更新核心持仓监控列表。请私享会成员关注飞书群内通知。",
+                    date: "2025-12-18",
+                    tag: "产品更新"
+                  },
+                  {
+                    title: "关于防范非法投教活动的声明",
+                    content: "近日发现有不法分子冒用我司名义开展非法投教活动。特此声明：我司所有活动均通过飞书平台发起，请勿轻信其他渠道信息。",
+                    date: "2025-12-17",
+                    tag: "重要声明"
+                  }
+                ].map((post, idx) => (
+                  <div key={idx} className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-6 hover:scale-[1.02] transition-all group">
+                    <div className="flex items-start justify-between mb-4">
+                      <span className="bg-amber-500/10 text-amber-500 text-xs font-black px-3 py-1 rounded-full">{post.tag}</span>
+                      <span className="text-slate-500 text-xs">{post.date}</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-white mb-3 group-hover:text-amber-400 transition-colors">{post.title}</h3>
+                    <p className="text-slate-400 text-sm leading-relaxed">{post.content}</p>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="pt-12 text-center">
+                <button 
+                  onClick={() => handleTabChange('home')}
+                  className="inline-flex items-center gap-3 bg-white hover:bg-slate-100 text-slate-900 py-4 px-8 rounded-full font-black text-sm uppercase tracking-widest active-scale transition-all shadow-xl"
+                >
+                  返回财富广场
+                  <i className="fas fa-arrow-right text-xs"></i>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+        
+      case 'stock-query':
+        return (
+          <div className="adaptive-container px-4 py-12 md:py-24 space-y-12 page-enter">
+            <div className="max-w-4xl mx-auto space-y-8">
+              <div className="flex items-center justify-between">
+                <div className="inline-flex items-center gap-3 bg-blue-500/10 px-6 py-3 rounded-full border border-blue-500/20">
+                  <span className="text-2xl">🔍</span>
+                  <span className="text-blue-500 font-black text-[10px] uppercase tracking-[0.3em]">Stock Query</span>
+                </div>
+              </div>
+              
+              <div className="space-y-6">
+                <h2 className="text-4xl md:text-6xl font-serif font-bold italic text-white tracking-tighter">个股查询</h2>
+                <p className="text-slate-400 text-lg md:text-xl font-light italic">
+                  支持A股（SH/SZ）和港股（HK）代码查询
+                </p>
+              </div>
+              
+              <div className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8">
+                <div className="space-y-6">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="请输入股票代码（如：SH600519、SZ000858、HK00700）"
+                      className="w-full bg-slate-800/50 border border-slate-700 rounded-xl py-4 px-6 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    />
+                    <button className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white py-2 px-6 rounded-lg font-bold text-sm active-scale transition-all">
+                      查询
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+                    <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
+                      <h3 className="text-xl font-bold text-white mb-4">A股代码格式</h3>
+                      <ul className="space-y-2 text-slate-400">
+                        <li className="flex items-center gap-2">
+                          <span className="text-green-500">•</span>
+                          <span>沪市主板：SH600XXX、SH601XXX、SH603XXX、SH605XXX</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="text-green-500">•</span>
+                          <span>深市主板：SZ000XXX</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="text-green-500">•</span>
+                          <span>中小板：SZ002XXX</span>
+                        </li>
+                        <li className="flex items-center gap-2">
+                          <span className="text-green-500">•</span>
+                  <span>创业板：SZ300XXX</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-green-500">•</span>
+                  <span>科创板：SH688XXX、SH689XXX</span>
+                </li>
+              </ul>
+            </div>
+            
+            <div className="bg-slate-800/30 border border-slate-700 rounded-xl p-6">
+              <h3 className="text-xl font-bold text-white mb-4">港股代码格式</h3>
+              <ul className="space-y-2 text-slate-400">
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">•</span>
+                  <span>主板：HK00XXX、HK01XXX-HK99XXX</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="text-blue-500">•</span>
+                  <span>示例：腾讯控股 HK00700、比亚迪股份 HK01211</span>
+                </li>
+              </ul>
             </div>
           </div>
           
-          <div className="space-y-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-6 md:pb-10">
-              <h3 className="text-2xl md:text-3xl font-serif font-bold text-slate-900 flex items-center gap-4 italic tracking-tight uppercase">
-                <span className="w-1 h-6 md:h-8 bg-amber-600 rounded-full"></span>
-                精华内参
-              </h3>
-              <span className="text-[10px] font-black text-slate-300 uppercase tracking-[0.4em] hidden sm:block">Premium Feed</span>
-            </div>
-            <div className="grid grid-cols-1 gap-6 md:gap-10">
-              {posts.map(p => (
-                <PostItem key={p.id} post={p} onClick={(post) => setSelectedPost(post)} />
+          <div className="mt-8 pt-8 border-t border-slate-800">
+            <h3 className="text-xl font-bold text-white mb-4">热门个股</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { code: 'SH600519', name: '贵州茅台' },
+                { code: 'SZ000858', name: '五粮液' },
+                { code: 'SH601318', name: '中国平安' },
+                { code: 'HK00700', name: '腾讯控股' },
+                { code: 'SZ002594', name: '比亚迪' },
+                { code: 'SH600036', name: '招商银行' },
+                { code: 'HK01211', name: '比亚迪股份' },
+                { code: 'SH601888', name: '中国中免' }
+              ].map((stock, idx) => (
+                <button 
+                  key={idx}
+                  className="bg-slate-800/50 hover:bg-slate-700/50 border border-slate-700 rounded-lg p-3 text-center transition-all active-scale"
+                >
+                  <div className="text-white font-bold">{stock.code}</div>
+                  <div className="text-slate-400 text-xs mt-1">{stock.name}</div>
+                </button>
               ))}
             </div>
           </div>
         </div>
-        
-        <div className="lg:col-span-4 sticky top-8 h-fit hidden lg:block">
-          <Suspense fallback={<ComponentLoader />}>
-            <RealtimeNewsFeed news={news} loading={loading} onRefresh={fetchData} />
-          </Suspense>
-        </div>
+      </div>
+      
+      <div className="pt-12 text-center">
+        <button 
+          onClick={() => handleTabChange('home')}
+          className="inline-flex items-center gap-3 bg-white hover:bg-slate-100 text-slate-900 py-4 px-8 rounded-full font-black text-sm uppercase tracking-widest active-scale transition-all shadow-xl"
+        >
+          返回首页
+          <i className="fas fa-arrow-right text-xs"></i>
+        </button>
       </div>
     </div>
-  ), [indices, posts, news, loading, handleTabChange, fetchData]);
+  </div>
+);
 
-  const strategyPage = useMemo(() => (
-    <div className="adaptive-container px-4 py-8 md:py-16 space-y-12 page-enter">
-      <div className="relative min-h-[500px] md:min-h-[700px] bg-[#020617] rounded-[2.5rem] md:rounded-[5rem] p-8 md:p-24 lg:p-32 text-white overflow-hidden shadow-[0_50px_100px_-20px_rgba(0,0,0,0.7)] border border-white/10 group transition-all duration-1000">
-        <div className="absolute inset-0 pointer-events-none overflow-hidden select-none">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#0f172a] via-[#020617] to-black"></div>
-          <div className="absolute -top-[10%] -right-[5%] w-[60%] h-[70%] bg-amber-600/10 blur-[180px] rounded-full animate-pulse transition-opacity duration-1000 opacity-80"></div>
-          <div className="absolute -bottom-[20%] -left-[10%] w-[70%] h-[80%] bg-blue-900/15 blur-[200px] rounded-full opacity-60"></div>
-          <div className="absolute top-0 left-0 w-full h-full opacity-[0.03]">
-             <div className="absolute top-0 left-1/4 w-[2px] h-full bg-gradient-to-b from-transparent via-amber-400 to-transparent rotate-12 -translate-x-full animate-[shimmer_8s_infinite]"></div>
-             <div className="absolute top-0 right-1/3 w-[1px] h-full bg-gradient-to-b from-transparent via-amber-200 to-transparent -rotate-12 translate-x-full animate-[shimmer_12s_infinite_reverse]"></div>
-          </div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[40%] h-[40%] bg-white/[0.015] blur-[150px] rounded-full"></div>
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/carbon-fibre.png')] opacity-[0.04] mix-blend-overlay"></div>
-          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/pinstriped-suit.png')] opacity-[0.02] mix-blend-soft-light"></div>
-          <div className="absolute inset-0 opacity-[0.08] mix-blend-screen pointer-events-none">
-             <svg className="w-full h-full" xmlns="http://www.w3.org/2000/svg">
-                <filter id='noiseFilter'>
-                  <feTurbulence type='fractalNoise' baseFrequency='0.6' numOctaves='3' stitchTiles='stitch'/>
-                </filter>
-                <rect width='100%' height='100%' filter='url(#noiseFilter)' opacity="0.3"/>
-             </svg>
+case 'wechat-collections':
+  return (
+    <div className="adaptive-container px-4 py-12 md:py-24 space-y-12 page-enter">
+      <div className="max-w-4xl mx-auto space-y-8">
+        <div className="flex items-center justify-between">
+          <div className="inline-flex items-center gap-3 bg-green-500/10 px-6 py-3 rounded-full border border-green-500/20">
+            <i className="fab fa-weixin text-2xl text-green-500"></i>
+            <span className="text-green-500 font-black text-[10px] uppercase tracking-[0.3em]">WeChat Collections</span>
           </div>
         </div>
-        <div className="relative z-10 max-w-4xl">
-          <div className="flex items-center gap-6 mb-12">
-            <div className="w-16 h-1 bg-gradient-to-r from-amber-600 to-transparent rounded-full shadow-[0_0_10px_rgba(192,149,14,0.5)]"></div>
-            <span className="text-amber-500 text-[11px] font-black uppercase tracking-[0.6em] opacity-90 drop-shadow-md">Strategy Intelligence</span>
-          </div>
-          <h1 className="fluid-h1 font-serif font-bold italic mb-10 md:mb-16 tracking-tighter leading-none">
-            深度策略<br/>
-            <span className="bg-gradient-to-r from-amber-200 via-amber-500 to-amber-100 bg-clip-text text-transparent drop-shadow-2xl">逻辑专刊</span>
-          </h1>
-          <p className="text-base md:text-xl lg:text-2xl text-slate-300 mb-14 md:mb-24 font-light leading-relaxed italic max-w-2xl border-l-2 border-amber-600/30 pl-10">
-            穿透市场噪音，重构产业逻辑。日斗投研团队诚意出品 <span className="text-amber-500 font-bold">25 篇</span> 策略深度专辑，涵盖从宏观因子到微观壁垒的全链条拆解。
+        
+        <div className="space-y-6">
+          <h2 className="text-4xl md:text-6xl font-serif font-bold italic text-white tracking-tighter">微信公众号合集</h2>
+          <p className="text-slate-400 text-lg md:text-xl font-light italic">
+            日斗投资官方公众号四大内容合集
           </p>
-          <div className="flex flex-wrap gap-8 items-center">
-            <button 
-              onClick={() => setConfirmingLink({ 
-                title: "订阅深度专辑", 
-                desc: "即将跳转至微信查看 25 篇策略全集专栏。建议在微信内收藏该专辑以便实时追踪逻辑更新。",
-                url: "https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzk2ODAzMDA2Ng==&action=getalbum&album_id=4100037966654046208#wechat_redirect"
-              })}
-              className="group relative bg-amber-600 hover:bg-amber-500 text-white px-12 py-7 md:px-20 md:py-10 rounded-[1.5rem] md:rounded-[2.5rem] font-black text-lg md:text-2xl active-scale transition-all shadow-[0_25px_60px_-15px_rgba(192,149,14,0.4)] border border-amber-400/20"
-            >
-              阅读全部 25 篇策略 ↗
-            </button>
-            <div className="flex flex-col gap-4">
-              <div className="flex -space-x-4">
-                 {[1,2,3,4].map(i => (
-                   <div key={i} className="w-12 h-12 rounded-full border-2 border-slate-900 bg-slate-800 flex items-center justify-center text-[12px] font-bold text-slate-400 shadow-xl overflow-hidden relative">
-                      <div className="absolute inset-0 bg-gradient-to-tr from-amber-600/10 to-transparent"></div>
-                      <i className="fas fa-user-shield relative z-10"></i>
-                   </div>
-                 ))}
-              </div>
-              <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest pl-2 border-l border-white/5">
-                  12.5k+ Readers Joined · Top Tier Analytics
-               </div>
-            </div>
-          </div>
         </div>
-        <div className="absolute -bottom-16 -right-16 text-[25rem] text-white opacity-[0.015] rotate-6 group-hover:rotate-0 group-hover:scale-110 transition-all duration-[3000ms] pointer-events-none font-serif font-black italic select-none">
-          RIDOU
-        </div>
-        <div className="absolute top-10 right-10 w-24 h-24 border border-amber-500/20 rounded-full flex items-center justify-center opacity-30 animate-spin-slow">
-           <div className="w-2 h-2 bg-amber-500 rounded-full animate-pulse shadow-[0_0_10px_#f59e0b]"></div>
-        </div>
-      </div>
-    </div>
-  ), []);
-
-  const aboutPage = useMemo(() => (
-    <div className="relative min-h-full overflow-x-hidden page-enter pb-32 md:pb-56">
-      <div className="absolute inset-0 -z-10 bg-[#000000] pointer-events-none">
-        <div className="absolute top-0 right-0 w-full h-[150vh] bg-gradient-to-b from-[#020617] via-[#000000] to-[#020617]"></div>
-        <div className="absolute top-[5%] -left-[10%] w-[80%] h-[60%] bg-amber-600/5 blur-[200px] rounded-full animate-pulse opacity-70"></div>
-        <div className="absolute bottom-[10%] -right-[15%] w-[70%] h-[70%] bg-blue-600/5 blur-[200px] rounded-full opacity-60"></div>
-        <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(rgba(255,255,255,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.05)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
-      </div>
-
-      <div className="adaptive-container px-6 py-20 md:py-40 space-y-40 md:space-y-64">
-        <section className="text-center space-y-16 md:space-y-24 relative">
-          <div className="relative inline-block group">
-            <div className="absolute inset-0 bg-amber-500/10 blur-[100px] rounded-full scale-150 opacity-40 group-hover:opacity-60 transition-opacity duration-1000"></div>
-            <Logo className="h-32 md:h-64 lg:h-80 mx-auto drop-shadow-[0_40px_80px_rgba(192,149,14,0.4)] relative z-10 transition-transform duration-1000 group-hover:scale-105" showText={false} />
-          </div>
-          <div className="space-y-8 max-w-5xl mx-auto">
-            <h1 className="fluid-h1 font-serif font-bold italic text-white tracking-tighter uppercase leading-[0.82]">
-              逻辑驱动<br/>
-              <span className="bg-gradient-to-r from-amber-100 via-amber-500 to-amber-800 bg-clip-text text-transparent">复利人生</span>
-            </h1>
-            <div className="flex flex-col items-center gap-4">
-              <div className="h-0.5 w-16 bg-amber-600 rounded-full opacity-50"></div>
-              <p className="text-[10px] md:text-xs font-black text-amber-500/70 uppercase tracking-[1em] md:tracking-[1.2em]">Logic Driven · Compound · Intelligent</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-10 md:gap-16">
-          {[
-            { title: '极致专业', desc: '以产业逻辑为锚点，穿透市场情绪噪音。', icon: '💎', color: 'amber' },
-            { title: '协作共生', desc: '基于飞书数字底座，构建极低摩擦的研报共享。', icon: '🤝', color: 'blue' },
-            { title: '长期主义', desc: '不赌博、不投机，只赚取逻辑兑现的确定性。', icon: '⏳', color: 'slate' }
-          ].map((val, i) => (
-            <div key={i} className="group p-12 md:p-16 bg-white/[0.01] border border-white/[0.05] rounded-[4rem] hover:bg-white/[0.03] hover:border-white/[0.1] transition-all duration-700 hover:-translate-y-4 shadow-2xl relative overflow-hidden">
-              <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/5 blur-3xl rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
-              <span className="text-5xl mb-12 block transform transition-transform duration-700 group-hover:scale-125 group-hover:rotate-6">{val.icon}</span>
-              <h3 className="text-3xl font-serif font-bold italic text-white mb-6">{val.title}</h3>
-              <p className="text-slate-500 text-lg leading-relaxed font-light italic">{val.desc}</p>
-            </div>
-          ))}
-        </section>
-
-        <section className="relative rounded-[4rem] md:rounded-[8rem] p-12 md:p-32 lg:p-40 border border-white/[0.08] bg-gradient-to-br from-slate-900/40 to-black/80 backdrop-blur-3xl overflow-hidden group shadow-[0_100px_200px_-50px_rgba(0,0,0,0.8)]">
-           <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/stardust.png')] opacity-10 pointer-events-none"></div>
-           
-           <div className="grid grid-cols-1 lg:grid-cols-12 gap-24 items-center relative z-10">
-              <div className="lg:col-span-7 space-y-16 md:space-y-20">
-                 <div className="space-y-6">
-                    <h2 className="fluid-h2 font-serif font-bold italic text-white tracking-tighter leading-none">
-                      日斗投资管理<br/>
-                      <span className="bg-gradient-to-r from-amber-400 via-amber-200 to-amber-600 bg-clip-text text-transparent">有限公司</span>
-                    </h2>
-                    <div className="flex items-center gap-4">
-                      <div className="h-1 w-20 bg-amber-600 rounded-full"></div>
-                      <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest opacity-60">Registered & Certified</span>
-                    </div>
-                 </div>
-                 
-                 <p className="text-xl md:text-3xl text-slate-400 font-light leading-relaxed italic max-w-3xl border-l-2 border-amber-600/20 pl-10">
-                   我们不是一家传统的资产管理公司。我们是一个由深度研究者、产业专家组成的智慧共同体，旨在寻找那些被市场低估的“逻辑锚点”。
-                 </p>
-
-                 <div className="space-y-12">
-                    <p className="text-[11px] font-black text-amber-500/60 uppercase tracking-[0.6em]">Official Digital Presence</p>
-                    <WechatSearchBanner 
-                      onClick={() => setConfirmingLink({
-                        title: "关注日斗官方",
-                        desc: "请使用微信扫描下方提示或搜索“日斗投资咨询管理有限公司”关注官方公众号。",
-                        url: "https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=Mzk2ODAzMDA2Ng==#wechat_redirect",
-                        isWechat: true,
-                        showBanner: false
-                      })}
-                      className="mx-0 border-white/5 shadow-inner scale-100" 
-                    />
-                 </div>
-
-                 <div className="pt-8 flex flex-col sm:flex-row items-center gap-10">
-                   <div className="bg-white/5 p-4 rounded-[2rem] border border-amber-500/20 shadow-[0_0_40px_rgba(192,149,14,0.1)] group/qr">
-                      <img 
-                        src={WECHAT_QR_URL} 
-                        alt="日斗官方二维码" 
-                        className="w-32 h-32 md:w-40 md:h-40 rounded-xl transition-transform duration-500 group-hover/qr:scale-105"
-                        loading="lazy"
-                      />
-                   </div>
-                   <div className="text-center sm:text-left space-y-4">
-                      <p className="text-white font-bold text-lg md:text-xl">官方微信二维码</p>
-                      <p className="text-slate-500 text-sm md:text-base leading-relaxed italic max-w-xs">
-                        使用微信扫描左侧二维码，<br/>
-                        或搜索“日斗投资咨询管理有限公司”关注。
-                      </p>
-                   </div>
-                 </div>
-
-                 <div className="flex flex-wrap gap-8 pt-8">
-                    <button onClick={() => setConfirmingLink({
-                      title: "关注日斗官方",
-                      desc: "请使用微信扫描下方提示或搜索“日斗投资咨询管理有限公司”关注官方公众号。",
-                      url: "https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz=Mzk2ODAzMDA2Ng==#wechat_redirect",
-                      isWechat: true,
-                      showBanner: false
-                    })} className="bg-[#07C160] hover:bg-[#06ad56] text-white px-12 py-6 md:px-16 md:py-10 rounded-[2.5rem] font-black text-lg transition-all shadow-3xl shadow-emerald-900/30 active-scale flex items-center gap-4 group/btn">
-                      <i className="fab fa-weixin text-2xl group-hover/btn:rotate-12 transition-transform"></i>
-                      立即跳转关注
-                    </button>
-                    <button onClick={() => setActiveTab('private-society')} className="bg-white/5 border border-white/10 text-white px-12 py-6 md:px-16 md:py-10 rounded-[2.5rem] font-black text-lg hover:bg-white/10 transition-all backdrop-blur-xl border-white/20">
-                      查看飞书指南
-                    </button>
-                 </div>
-              </div>
-
-              <div className="lg:col-span-5 hidden lg:flex flex-col gap-12 relative">
-                <div className="absolute -inset-20 bg-amber-500/5 blur-[150px] rounded-full animate-pulse"></div>
-                
-                <div className="relative p-16 bg-white/[0.02] border border-white/[0.08] rounded-[5rem] shadow-3xl backdrop-blur-3xl -rotate-3 hover:rotate-0 transition-all duration-1000 group/quote">
-                   <div className="mb-10 text-amber-600/40 group-hover/quote:text-amber-500 transition-colors">
-                      <i className="fas fa-quote-left text-5xl"></i>
-                   </div>
-                   <p className="text-4xl xl:text-5xl text-white font-serif italic font-bold leading-tight tracking-tighter">“数字基建：飞书协同，逻辑共振。”</p>
-                   <div className="mt-16 flex items-center gap-6">
-                      <div className="w-14 h-14 rounded-full bg-slate-800 border border-white/10 flex items-center justify-center">
-                        <i className="fas fa-gem text-amber-500"></i>
-                      </div>
-                      <span className="text-[11px] font-black text-slate-500 uppercase tracking-[0.3em]">Ridou Executive Committee</span>
-                   </div>
-                </div>
-
-                <div className="relative p-12 bg-gradient-to-br from-amber-600/10 to-transparent border border-amber-600/10 rounded-[4rem] shadow-2xl self-end max-w-sm rotate-6 hover:rotate-0 transition-all duration-1000 delay-150">
-                   <p className="text-slate-400 text-base italic font-medium leading-relaxed">
-                     所有入驻私享会的成员均通过飞书实现毫秒级协同。我们拒绝传统干扰，只在云端共享智慧。
-                   </p>
-                </div>
-              </div>
-           </div>
-        </section>
         
-        <section className="text-center pt-32 pb-20 border-t border-white/[0.03]">
-           <div className="flex flex-col items-center gap-6">
-             <div className="flex items-center gap-8 text-[11px] font-black text-slate-700 uppercase tracking-widest">
-               <span className="hover:text-amber-500 transition-colors cursor-pointer">Compliance</span>
-               <span className="w-1 h-1 bg-slate-800 rounded-full"></span>
-               <span className="hover:text-amber-500 transition-colors cursor-pointer">Security</span>
-               <span className="w-1 h-1 bg-slate-800 rounded-full"></span>
-               <span className="hover:text-amber-500 transition-colors cursor-pointer">Terms</span>
-             </div>
-             <p className="text-[10px] font-black text-slate-600 uppercase tracking-[0.8em] opacity-50">Copyright © 2025 Ridou Investment Consulting Co., Ltd.</p>
-           </div>
-        </section>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+          {[
+            {
+              title: "日斗风口掘金合集",
+              desc: "深度挖掘市场热点板块与潜在机会",
+              url: "https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzk2ODAzMDA2Ng==&action=getalbum&album_id=4303883530733797378#wechat_redirect",
+              icon: "🔥"
+            },
+            {
+              title: "日斗私享会",
+              desc: "精英投研社群专属内容与闭门研讨",
+              url: "https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzk2ODAzMDA2Ng==&action=getalbum&album_id=4302633600643940362#wechat_redirect",
+              icon: "🔱"
+            },
+            {
+              title: "日斗每日财经说",
+              desc: "每日市场点评与投资逻辑分享",
+              url: "https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzk2ODAzMDA2Ng==&action=getalbum&album_id=4100042146043101193#wechat_redirect",
+              icon: "💬"
+            },
+            {
+              title: "日斗策略",
+              desc: "投资策略体系与实战方法论",
+              url: "https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzk2ODAzMDA2Ng==&action=getalbum&album_id=4100037966654046208#wechat_redirect",
+              icon: "🎯"
+            }
+          ].map((collection, idx) => (
+            <a 
+              key={idx}
+              href={collection.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="bg-gradient-to-br from-slate-900/50 to-black/80 border border-white/5 rounded-[2rem] p-8 hover:scale-[1.02] transition-all group"
+            >
+              <div className="flex items-center gap-4 mb-6">
+                <span className="text-3xl">{collection.icon}</span>
+                <h3 className="text-xl font-bold text-white group-hover:text-green-400 transition-colors">{collection.title}</h3>
+              </div>
+              <p className="text-slate-400 mb-6">{collection.desc}</p>
+              <div className="flex items-center justify-between">
+                <span className="text-green-500 text-sm font-black uppercase tracking-widest">View Collection</span>
+                <i className="fas fa-external-link-alt text-green-500 group-hover:translate-x-1 transition-transform"></i>
+              </div>
+            </a>
+          ))}
+        </div>
+        
+        <div className="pt-12 text-center">
+          <button 
+            onClick={() => handleTabChange('home')}
+            className="inline-flex items-center gap-3 bg-white hover:bg-slate-100 text-slate-900 py-4 px-8 rounded-full font-black text-sm uppercase tracking-widest active-scale transition-all shadow-xl"
+          >
+            返回首页
+            <i className="fas fa-arrow-right text-xs"></i>
+          </button>
+        </div>
       </div>
     </div>
-  ), []);
-
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'home': return homeContent;
-      case 'strategy': return strategyPage;
-      case 'daily-talk': return (
-        <div className="adaptive-container px-4 py-12 md:py-24 space-y-12 page-enter text-center">
-           <h1 className="fluid-h1 font-serif font-bold italic text-slate-900 leading-none">每日财经说</h1>
-           <div className="max-w-4xl mx-auto bg-slate-50 p-12 md:p-24 rounded-[3rem] md:rounded-[5rem] border border-slate-100 shadow-inner">
-             <p className="text-lg md:text-2xl text-slate-500 mb-12 font-light">逻辑不断，复利永生。每日早盘提示与盘后深度复盘。</p>
-             <button 
-                onClick={() => setConfirmingLink({ 
-                  title: "阅读日更专辑", 
-                  desc: "即将前往微信查看《每日财经说》日更新专辑合集。",
-                  url: "https://mp.weixin.qq.com/mp/appmsgalbum?__biz=Mzk2ODAzMDA2Ng==&action=getalbum&album_id=4100042146043101193#wechat_redirect"
-                })}
-                className="bg-slate-950 text-white px-12 py-6 md:px-20 md:py-10 rounded-[2rem] md:rounded-[3rem] font-black text-xl active-scale shadow-2xl"
-             >
-               查阅复盘笔记 ↗
-             </button>
-           </div>
-        </div>
-      );
-      case 'markets': return (
-        <div className="adaptive-container px-4 py-8 md:py-16 space-y-12 page-enter pt-8 pb-32">
-          <Suspense fallback={<ComponentLoader />}>
-            <RealtimeQuotes indices={indices} />
-          </Suspense>
-        </div>
-      );
-      case 'private-society': return (
-        <div className="min-h-full bg-slate-950 overflow-y-auto page-enter pt-24 pb-40">
-          <div className="adaptive-container px-6 space-y-24">
-            <div className="max-w-5xl mx-auto bg-[#0f172a] rounded-[3rem] md:rounded-[6rem] p-12 md:p-24 text-white border border-white/5 relative overflow-hidden shadow-[0_50px_100px_rgba(0,0,0,0.5)]">
-              <div className="absolute top-0 right-0 p-10 opacity-10 pointer-events-none">
-                 <i className="fas fa-gem text-[10rem] rotate-12"></i>
-              </div>
-              <h2 className="fluid-h2 font-serif font-bold italic mb-10 tracking-tighter relative z-10">日斗私享会</h2>
-              <p className="text-xl md:text-3xl text-slate-400 font-light mb-16 leading-relaxed relative z-10 italic max-w-2xl">
-                加入日斗核心研报圈层，解锁极密策略内参。我们坚持数字协同，仅通过飞书建立联系。
-              </p>
-              <button 
-                onClick={() => setIsAppModalOpen(true)}
-                className="w-full bg-amber-600 hover:bg-amber-500 py-8 md:py-12 rounded-3xl md:rounded-[3.5rem] font-black text-2xl md:text-4xl active-scale shadow-3xl shadow-amber-600/20 relative z-10"
-              >
-                立即开启申请 ↗
-              </button>
-            </div>
-            
-            <div className="max-w-6xl mx-auto">
-              <FeishuGuideSection />
-            </div>
-          </div>
-        </div>
-      );
-      case 'about': return aboutPage;
-      default: return homeContent;
+  );
     }
   };
 
   return (
     <ErrorBoundary>
-      <div className="fixed inset-0 flex bg-[#fdfdfd] flex-col md:flex-row font-sans overflow-hidden">
-        <Sidebar activeTab={activeTab} setActiveTab={handleTabChange} />
-        <div className="flex-1 h-full flex flex-col relative overflow-hidden">
-          {activeTab !== 'private-society' && (
-            <header className="flex-none z-50 glass-nav px-6 md:px-12 border-b border-slate-100 flex justify-between items-center h-16 md:h-28 lg:h-32">
-              <div className="flex items-center gap-4 md:gap-6 flex-1">
-                <Logo className="h-8 md:h-12 lg:h-16" showText={false} />
-                <div className="flex flex-col md:flex-row md:items-center gap-2 md:gap-4 shrink-0">
-                  <h1 className="text-lg md:text-2xl lg:text-3xl font-serif font-bold italic text-slate-900 uppercase tracking-tighter">
-                    {activeTab === 'home' ? '广场' : activeTab === 'markets' ? '行情中心' : activeTab === 'about' ? '关于日斗' : activeTab === 'strategy' ? '投研策略' : '财经说'}
-                  </h1>
-                  {unreadNewsCount > 0 && (
-                    <button 
-                      onClick={handleMarkAllAsRead}
-                      className="flex items-center gap-2 bg-amber-600 text-white px-3 py-1.5 md:px-4 md:py-2 rounded-full shadow-lg shadow-amber-600/30 animate-pulse active-scale hover:bg-amber-500 transition-all"
-                    >
-                      <i className="fas fa-bolt text-[10px]"></i>
-                      <span className="text-[10px] md:text-xs font-black uppercase tracking-widest whitespace-nowrap">
-                        {unreadNewsCount} 新
-                      </span>
-                    </button>
-                  )}
-                </div>
-
-                <div ref={searchRef} className="relative hidden lg:flex items-center flex-1 max-w-md ml-8">
-                  <div className="absolute left-4 text-slate-400">
-                    <i className="fas fa-search"></i>
-                  </div>
-                  <input 
-                    type="text" 
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onFocus={() => setIsSearchFocused(true)}
-                    placeholder="搜索投研报告、行情、快讯..."
-                    className="w-full bg-slate-50 border border-slate-100 rounded-full py-3 pl-12 pr-4 outline-none focus:border-amber-500 focus:bg-white transition-all text-sm font-medium"
-                  />
-                  {isSearchFocused && searchSuggestions.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-2 bg-white rounded-2xl shadow-2xl border border-slate-100 overflow-hidden z-[100] animate-in fade-in slide-in-from-top-2 duration-300">
-                      <div className="max-h-96 overflow-y-auto no-scrollbar">
-                        {searchSuggestions.map((s) => (
-                          <button 
-                            key={s.id}
-                            onClick={() => handleSuggestionClick(s)}
-                            className="w-full text-left px-6 py-4 hover:bg-slate-50 flex items-center gap-4 transition-colors group"
-                          >
-                            <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase shrink-0 ${
-                              s.type === '研报' ? 'bg-amber-50 text-amber-600' : 
-                              s.type === '行情' ? 'bg-blue-50 text-blue-600' : 
-                              'bg-red-50 text-red-600'
-                            }`}>
-                              {s.type}
-                            </span>
-                            <span className="text-sm font-bold text-slate-700 truncate group-hover:text-slate-950">{s.title}</span>
-                            <i className="fas fa-chevron-right ml-auto text-[10px] text-slate-300 opacity-0 group-hover:opacity-100 transition-all"></i>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-full border border-slate-100 ml-4 shrink-0">
+      <div className="w-full h-full flex">
+        <Sidebar activeTab={activeTab} onTabChange={handleTabChange} unreadNewsCount={unreadNewsCount} />
+        
+        <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+          {activeTab !== 'home' && activeTab !== 'daily-talk' && (
+            <header className="flex-none sticky top-0 z-50 bg-white/90 backdrop-blur-xl px-6 md:px-12 py-6 border-b border-slate-100 flex items-center justify-between">
+              <h1 className="text-xl md:text-2xl font-serif font-bold italic text-slate-900 tracking-tighter capitalize">
+                {activeTab === 'markets' && '实时行情'}
+                {activeTab === 'stock-query' && '个股查询'}
+                {activeTab === 'wechat-collections' && '微信合集'}
+                {activeTab === 'private-society' && '私享会'}
+                {activeTab === 'about' && '关于我们'}
+              </h1>
+              
+              <div className="flex items-center gap-3 bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
                 <span className={`w-1.5 h-1.5 md:w-2 md:h-2 rounded-full ${dbConnected ? 'bg-emerald-500' : 'bg-slate-300'} animate-pulse`}></span>
                 <span className="text-[8px] md:text-[10px] font-black text-slate-400 uppercase tracking-widest">{dbConnected ? 'Live' : 'Demo'}</span>
               </div>
             </header>
           )}
+          
           <main 
             ref={scrollContainerRef} 
             className="flex-1 overflow-y-auto no-scrollbar translate-z-0"
@@ -742,8 +1063,9 @@ const App: React.FC = () => {
           {/* Mobile Bottom Nav */}
           <nav className="flex-none fixed bottom-0 left-0 right-0 glass-nav border-t border-slate-100 px-6 py-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] flex md:hidden justify-between items-center z-[60] shadow-2xl">
             {[
-              { id: 'home', icon: '🏠', label: '广场' },
+              { id: 'home', icon: '🏠', label: '首页' },
               { id: 'markets', icon: '📈', label: '行情' },
+              { id: 'stock-query', icon: '🔍', label: '查股' },
               { id: 'private-society', icon: '🔱', label: '申请' },
               { id: 'about', icon: '🏛️', label: '关于' }
             ].map((nav) => (
@@ -753,96 +1075,8 @@ const App: React.FC = () => {
               </button>
             ))}
           </nav>
-
-          {/* AI Floating Button */}
-          <button 
-            onClick={() => setIsAiOpen(true)}
-            className="fixed bottom-24 right-6 md:bottom-12 md:right-12 w-16 h-16 md:w-20 md:h-20 bg-gradient-to-br from-amber-500 to-amber-700 rounded-full shadow-2xl flex items-center justify-center text-white text-3xl md:text-4xl hover:scale-110 active:scale-95 transition-all z-[80] group"
-          >
-            <span className="group-hover:rotate-12 transition-transform">🔱</span>
-            <div className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 border-2 border-white rounded-full animate-ping"></div>
-          </button>
         </div>
       </div>
-
-      {/* AI Chat Drawer/Modal */}
-      {isAiOpen && (
-        <div className="fixed inset-0 z-[150] flex items-end md:items-center justify-center md:justify-end p-0 md:p-8 bg-black/40 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white w-full md:w-[450px] lg:w-[500px] h-[80vh] md:h-[90vh] md:max-h-[800px] rounded-t-[3rem] md:rounded-[3rem] shadow-[0_50px_100px_rgba(0,0,0,0.5)] flex flex-col overflow-hidden border border-slate-100 relative translate-z-0">
-             <div className="p-6 bg-[#0f172a] text-white flex justify-between items-center shrink-0">
-                <div className="flex items-center gap-4">
-                   <div className="w-10 h-10 bg-amber-500 rounded-2xl flex items-center justify-center text-xl shadow-lg">🔱</div>
-                   <div>
-                      <h3 className="font-bold text-lg leading-tight tracking-tighter">日斗 AI 逻辑专家</h3>
-                      <p className="text-[9px] text-amber-500 font-black uppercase tracking-widest flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span>
-                        Deep Insight Assistant
-                      </p>
-                   </div>
-                </div>
-                <button onClick={() => setIsAiOpen(false)} className="w-10 h-10 flex items-center justify-center hover:bg-white/10 rounded-full text-white/40 hover:text-white transition-all text-2xl">✕</button>
-             </div>
-
-             <div ref={aiScrollRef} className="flex-1 overflow-y-auto p-6 space-y-8 no-scrollbar bg-slate-50/50">
-                {aiChatHistory.length === 0 && (
-                  <div className="h-full flex flex-col items-center justify-center text-center space-y-6 px-10">
-                     <div className="text-6xl opacity-20">📈</div>
-                     <div className="space-y-2">
-                        <p className="text-slate-900 font-black text-xl italic tracking-tighter">今天想拆解什么逻辑？</p>
-                        <p className="text-slate-400 text-xs italic">输入行业、个股或宏观话题，我将结合最新行情为您深度分析。</p>
-                     </div>
-                  </div>
-                )}
-                {aiChatHistory.map((chat, idx) => (
-                  <div key={idx} className={`flex ${chat.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                    <div className={`max-w-[85%] p-5 rounded-[1.5rem] shadow-sm text-sm font-medium leading-relaxed ${
-                      chat.role === 'user' 
-                      ? 'bg-amber-600 text-white rounded-tr-none' 
-                      : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
-                    }`}>
-                      <div className="whitespace-pre-wrap prose prose-sm max-w-none prose-slate">
-                        {chat.parts[0].text}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {isAiThinking && (
-                  <div className="flex justify-start">
-                    <div className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-slate-100 rounded-tl-none flex items-center gap-3">
-                       <div className="flex gap-1">
-                         <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce"></div>
-                         <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-.3s]"></div>
-                         <div className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-bounce [animation-delay:-.5s]"></div>
-                       </div>
-                       <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logic Modeling...</span>
-                    </div>
-                  </div>
-                )}
-             </div>
-
-             <form onSubmit={handleAiSubmit} className="p-6 bg-white border-t border-slate-100 shrink-0">
-                <div className="relative flex items-center gap-3 bg-slate-50 p-2 rounded-[1.5rem] border border-slate-200">
-                   <input 
-                      value={aiMessage}
-                      onChange={e => setAiMessage(e.target.value)}
-                      placeholder="咨询深度产业逻辑..."
-                      className="flex-1 bg-transparent py-3 px-4 outline-none text-sm font-bold text-slate-700"
-                   />
-                   <button 
-                      type="submit"
-                      disabled={isAiThinking || !aiMessage.trim()}
-                      className="w-10 h-10 bg-amber-600 text-white rounded-xl shadow-lg hover:bg-amber-500 transition-all flex items-center justify-center disabled:opacity-50 disabled:grayscale"
-                   >
-                      <i className="fas fa-paper-plane text-sm"></i>
-                   </button>
-                </div>
-                <p className="mt-4 text-[8px] text-center font-bold text-slate-300 uppercase tracking-widest">
-                  Powered by Gemini 3 Logic Engine
-                </p>
-             </form>
-          </div>
-        </div>
-      )}
 
       {selectedPost && (
         <div className="fixed inset-0 z-[100] bg-white overflow-y-auto no-scrollbar animate-in slide-in-from-bottom duration-500">
@@ -887,7 +1121,7 @@ const App: React.FC = () => {
                        </div>
                     </div>
                     <p className="text-slate-900 font-bold text-lg md:text-xl mb-4 italic leading-relaxed">
-                      请使用微信扫描上方提示或搜索<br/>“日斗投资咨询管理有限公司”关注官方公众号
+                      请使用微信扫描上方提示或搜索<br/>"日斗投资咨询管理有限公司"关注官方公众号
                     </p>
                  </div>
                )}
@@ -988,6 +1222,12 @@ const App: React.FC = () => {
                     <p className="text-slate-400 text-lg md:text-2xl font-light leading-relaxed italic max-w-2xl mx-auto">
                       您的背景逻辑已录入。导师将在 24 小时内通过飞书与您建立连接，请及时查看系统通知。
                     </p>
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-6 max-w-2xl mx-auto">
+                      <p className="text-amber-500 font-bold text-center">
+                        <i className="fas fa-info-circle mr-2"></i>
+                        私享会为免费公益项目，所有课程与交流均通过飞书平台进行
+                      </p>
+                    </div>
                   </div>
                   
                   <div className="bg-white/5 border border-white/10 rounded-[4rem] p-10 md:p-14 space-y-12 backdrop-blur-3xl shadow-3xl text-left">
@@ -1013,7 +1253,7 @@ const App: React.FC = () => {
                            <div className="bg-black/40 p-5 rounded-2xl border border-white/5">
                               <p className="text-amber-500 font-black text-sm italic">
                                 设置 &gt; 隐私 &gt; <br/>
-                                <span className="text-base">开启“允许通过手机号搜索我”</span>
+                                <span className="text-base">开启"允许通过手机号搜索我"</span>
                               </p>
                            </div>
                         </div>
