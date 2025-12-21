@@ -25,13 +25,13 @@ export default defineConfig(({ mode }) => {
         }
       },
       plugins: [
-        react(),
-        visualizer({
-          filename: 'dist/stats.html',
-          open: true,
-          gzipSize: true,
-          brotliSize: true
-        })
+        react()
+        // visualizer({
+        //   filename: 'dist/stats.html',
+        //   open: true,
+        //   gzipSize: true,
+        //   brotliSize: true
+        // })
       ],
       define: {
         'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),

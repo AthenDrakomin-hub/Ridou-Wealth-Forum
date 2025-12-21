@@ -189,7 +189,7 @@ const App: React.FC = () => {
       const [newsData, postsData, indexData] = await Promise.all([
         DataService.getInstance().fetchNews(),
         DataService.getInstance().fetchForumPosts(),  // 修复：使用正确的方法名
-        DataService.getInstance().fetchIndices()
+        DataService.getInstance().fetchMarketIndices()
       ]);
       
       setNews(newsData);
@@ -1033,7 +1033,7 @@ case 'wechat-collections':
   return (
     <ErrorBoundary>
       <div className="w-full h-full flex">
-        <Sidebar activeTab={activeTab} onTabChange={handleTabChange} unreadNewsCount={unreadNewsCount} />
+        <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} onTabChange={handleTabChange} unreadNewsCount={unreadNewsCount} />
         
         <div className="flex-1 flex flex-col h-full overflow-hidden relative">
           {activeTab !== 'home' && activeTab !== 'daily-talk' && (

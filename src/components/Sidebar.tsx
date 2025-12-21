@@ -13,9 +13,11 @@ export const MENU_ITEMS = [
 interface SidebarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
+  onTabChange?: (tab: string) => void;
+  unreadNewsCount?: number;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => {
+const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, onTabChange, unreadNewsCount }) => {
   return (
     <div className="w-72 2xl:w-80 bg-white h-screen border-r border-slate-200 hidden md:flex flex-col sticky top-0 shadow-sm z-50">
       <div className="p-10">

@@ -8,6 +8,8 @@ interface RealtimeNewsFeedProps {
   news: NewsItem[];
   onRefresh?: () => void;
   loading?: boolean;
+  unreadCount?: number;
+  onMarkAllAsRead?: () => void;
 }
 
 const RealtimeNewsFeed: React.FC<RealtimeNewsFeedProps> = React.memo(({ news, onRefresh, loading }) => {
