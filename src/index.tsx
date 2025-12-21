@@ -4,7 +4,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import './utils/performanceMonitor';
 import { initSentry } from './utils/sentry';
-import './src/index.css';
+import './index.css';
 
 // 初始化Sentry
 initSentry();
