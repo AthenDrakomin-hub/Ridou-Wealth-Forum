@@ -21,10 +21,23 @@ export class DataService {
   private SINA_NEWS_BASE = "https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152";
 
   private constructor() {
-    const supabaseUrl = process.env.SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_ANON_KEY;
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    
+    // 调试信息（仅开发环境）
+    if (import.meta.env.DEV) {
+      console.log('[Supabase Config]', {
+        url: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'MISSING',
+        key: supabaseKey ? `${supabaseKey.substring(0, 20)}...` : 'MISSING',
+        hasUrl: !!supabaseUrl,
+        hasKey: !!supabaseKey
+      });
+    }
+    
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey);
+    } else {
+      console.error('[Supabase] 环境变量未配置！请检查 .env.local 文件');
     }
   }
 
@@ -52,6 +65,13 @@ export class DataService {
   }
 
   /**
+   * 判断是否为开发环境
+   */
+  private isDevelopment(): boolean {
+    return import.meta.env.DEV || window.location.hostname === 'localhost';
+  }
+
+  /**
    * 获取 7x24 小时真实快讯
    */
   public async fetchNews(): Promise<NewsItem[]> {
@@ -63,20 +83,34 @@ export class DataService {
     }
     
     try {
-      // 使用公共代理以解决开发环境下的跨域问题
-      const proxyUrl = "https://api.allorigins.win/raw?url=";
-      const response = await fetch(`${proxyUrl}${encodeURIComponent(this.SINA_NEWS_BASE)}`);
+      // 开发环境使用 Vite 代理，生产环境直接调用
+      const apiUrl = this.isDevelopment() 
+        ? '/api/sina/feed?page=1&page_size=20&zhibo_id=152'
+        : 'https://zhibo.sina.com.cn/api/zhibo/feed?page=1&page_size=20&zhibo_id=152';
+      
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+        cache: 'no-cache'
+      });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      
       const json = await response.json();
       
-      if (json?.result?.data?.feed?.list) {
-        const newsData = json.result.data.feed.list.map((item: any) => ({
+      if (json?.result?.data?.feed?.list && Array.isArray(json.result.data.feed.list)) {
+        const newsData = json.result.data.feed.list.slice(0, 20).map((item: any) => ({
           id: item.id.toString(),
-          title: item.content,
+          title: item.content || item.title || '暂无标题',
           source: '新浪财经',
           url: item.doc_url || '#',
-          timestamp: item.createtime.split(' ')[1].slice(0, 5), // 提取 HH:mm
+          timestamp: item.createtime ? item.createtime.split(' ')[1]?.slice(0, 5) || '--:--' : '--:--',
           category: '宏观',
-          sentiment: item.content.includes('利好') || item.content.includes('大涨') ? 'positive' : 'neutral'
+          sentiment: (item.content || '').includes('利好') || (item.content || '').includes('大涨') ? 'positive' as const : 'neutral' as const
         }));
         
         // 缓存数据
@@ -87,12 +121,15 @@ export class DataService {
       console.warn("Real-time news fetch failed, using fallback.", err);
     }
 
-    const fallbackData = [
-      { id: 'f1', title: '【系统提示】正在尝试连接实时财经信号源...', source: '系统', url: '#', timestamp: '--:--', category: '宏观', sentiment: 'neutral' }
+    // 使用模拟数据（API 不可用时的后备方案）
+    const fallbackData: NewsItem[] = [
+      { id: 'f1', title: '【系统提示】实时财经数据源暂时不可用，请刷新页面重试', source: '系统', url: '#', timestamp: new Date().toTimeString().slice(0, 5), category: '宏观', sentiment: 'neutral' },
+      { id: 'f2', title: '市场概览：A股三大指数震荡整理，北向资金净流入15亿元', source: '模拟数据', url: '#', timestamp: new Date().toTimeString().slice(0, 5), category: 'A股', sentiment: 'neutral' },
+      { id: 'f3', title: '央行公告：今日开展1000亿元逆回购操作', source: '模拟数据', url: '#', timestamp: new Date().toTimeString().slice(0, 5), category: '宏观', sentiment: 'positive' }
     ];
     
-    // 缓存后备数据
-    this.setCachedData(cacheKey, fallbackData);
+    // 缓存后备数据（较短时间）
+    this.cache.set(cacheKey, { data: fallbackData, timestamp: Date.now() - (this.CACHE_TTL - 30000) });
     return fallbackData;
   }
 
@@ -211,10 +248,38 @@ export class DataService {
       try {
         const { data, error } = await this.supabase
           .from('posts')
-          .select('*')
+          .select(`
+            *,
+            comments:comments(
+              id,
+              author_name,
+              content,
+              created_at,
+              author_id
+            )
+          `)
+          .eq('status', 'published')  // 只查询已发布的帖子
           .order('timestamp', { ascending: false });
+        
         if (error) throw error;
-        if (data && data.length > 0) return data as Post[];
+        
+        if (data && data.length > 0) {
+          // 将 comments 字段映射为 commentsList，并转换字段名
+          return data.map(post => ({
+            ...post,
+            isFeatured: post.is_featured,
+            relatedStock: post.related_stock,
+            commentsList: (post.comments || []).map((c: any) => ({
+              id: c.id,
+              author: c.author_name,  // author_name → author
+              content: c.content,
+              timestamp: c.created_at,  // created_at → timestamp
+              post_id: post.id,
+              author_id: c.author_id
+            })),
+            comments: (post.comments || []).length  // 评论数量
+          })) as Post[];
+        }
       } catch (e) {
         console.error("Fetch Posts Error", e);
       }

@@ -1,9 +1,11 @@
 
 export interface Comment {
   id: string;
-  author: string;
+  author: string;  // 映射自 author_name
   content: string;
-  timestamp: string;
+  timestamp: string;  // 映射自 created_at
+  post_id?: string;  // 新增：关联帖子ID
+  author_id?: string;  // 新增：作者ID
 }
 
 export interface RelatedStock {

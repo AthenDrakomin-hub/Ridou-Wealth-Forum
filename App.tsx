@@ -188,7 +188,7 @@ const App: React.FC = () => {
     try {
       const [newsData, postsData, indexData] = await Promise.all([
         DataService.getInstance().fetchNews(),
-        DataService.getInstance().fetchPosts(),
+        DataService.getInstance().fetchForumPosts(),  // 修复：使用正确的方法名
         DataService.getInstance().fetchIndices()
       ]);
       

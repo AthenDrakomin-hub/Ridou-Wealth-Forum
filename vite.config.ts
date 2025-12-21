@@ -9,6 +9,20 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          // 代理新浪财经 API（解决开发环境 CORS 问题）
+          '/api/sina': {
+            target: 'https://zhibo.sina.com.cn',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/sina/, '/api/zhibo')
+          },
+          // 代理东方财富 API
+          '/api/eastmoney': {
+            target: 'https://push2.eastmoney.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/api\/eastmoney/, '/api/qt')
+          }
+        }
       },
       plugins: [
         react(),
@@ -21,7 +35,7 @@ export default defineConfig(({ mode }) => {
       ],
       define: {
         'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
-        'process.env.SENTRY_DSN': JSON.stringify(env.SENTRY_DSN)
+        'process.env.VITE_SENTRY_DSN': JSON.stringify(env.VITE_SENTRY_DSN)
       },
       resolve: {
         alias: {
