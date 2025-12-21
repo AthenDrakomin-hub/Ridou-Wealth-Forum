@@ -1,0 +1,7 @@
+# Vercel 忽略文件
+.git
+.vscode
+node_modules
+supabase/.temp
+*.log
+.env.local
