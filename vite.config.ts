@@ -6,7 +6,7 @@ import { visualizer } from 'rollup-plugin-visualizer';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
-      base: './', // 添加基础路径配置
+      base: '/', // 使用绝对路径配置
       server: {
         port: 3000,
         host: '0.0.0.0',
