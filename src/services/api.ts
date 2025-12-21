@@ -24,20 +24,16 @@ export class DataService {
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
     const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     
-    // 调试信息（仅开发环境）
-    if (import.meta.env.DEV) {
-      console.log('[Supabase Config]', {
-        url: supabaseUrl ? `${supabaseUrl.substring(0, 30)}...` : 'MISSING',
-        key: supabaseKey ? `${supabaseKey.substring(0, 20)}...` : 'MISSING',
-        hasUrl: !!supabaseUrl,
-        hasKey: !!supabaseKey
-      });
-    }
-    
     if (supabaseUrl && supabaseKey) {
       this.supabase = createClient(supabaseUrl, supabaseKey);
+      if (import.meta.env.DEV) {
+        console.log('[Supabase] 连接成功');
+      }
     } else {
-      console.error('[Supabase] 环境变量未配置！请检查 .env.local 文件');
+      // 静默处理，不影响预览部署
+      if (import.meta.env.DEV) {
+        console.warn('[Supabase] 未配置，数据库功能不可用');
+      }
     }
   }
 
